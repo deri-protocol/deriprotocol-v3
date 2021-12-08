@@ -15,6 +15,33 @@ import '../library/SafeERC20.sol';
 
 contract PoolImplementation is PoolStorage, NameVersion {
 
+    event AddLiquidity(
+        uint256 indexed lTokenId,
+        address indexed underlying,
+        uint256 amount,
+        int256 newLiquidity
+    );
+
+    event RemoveLiquidity(
+        uint256 indexed lTokenId,
+        address indexed underlying,
+        uint256 amount,
+        int256 newLiquidity
+    );
+
+    event AddMargin(
+        uint256 indexed pTokenId,
+        address indexed underlying,
+        uint256 amount
+    );
+
+    event RemoveMargin(
+        uint256 indexed pTokenId,
+        address indexed underlying,
+        uint256 amount,
+        int256 newMargin
+    );
+
     using SafeMath for uint256;
     using SafeMath for int256;
     using SafeERC20 for IERC20;
@@ -175,6 +202,8 @@ contract PoolImplementation is PoolStorage, NameVersion {
         info.amountB0 = data.amountB0;
         info.liquidity = data.lpLiquidity;
         info.cumulativePnlPerLiquidity = data.lpCumulativePnlPerLiquidity;
+
+        emit AddLiquidity(data.tokenId, underlying, amount, newLiquidity);
     }
 
     function removeLiquidity(address underlying, uint256 amount) external _reentryLock_
@@ -226,6 +255,8 @@ contract PoolImplementation is PoolStorage, NameVersion {
         info.amountB0 = data.amountB0;
         info.liquidity = data.lpLiquidity;
         info.cumulativePnlPerLiquidity = data.lpCumulativePnlPerLiquidity;
+
+        emit RemoveLiquidity(data.tokenId, underlying, amount, newLiquidity);
     }
 
     function addMargin(address underlying, uint256 amount) external payable _reentryLock_
@@ -243,6 +274,8 @@ contract PoolImplementation is PoolStorage, NameVersion {
         TdInfo storage info = tdInfos[data.tokenId];
         info.vault = data.vault;
         info.amountB0 = data.amountB0;
+
+        emit AddMargin(data.tokenId, underlying, amount);
     }
 
     function removeMargin(address underlying, uint256 amount) external _reentryLock_
@@ -271,6 +304,8 @@ contract PoolImplementation is PoolStorage, NameVersion {
         cumulativePnlPerLiquidity = data.cumulativePnlPerLiquidity;
 
         tdInfos[data.tokenId].amountB0 = data.amountB0;
+
+        emit RemoveMargin(data.tokenId, underlying, amount, newBorrowLimit.utoi() + data.amountB0);
     }
 
     function trade(string memory symbolName, int256 tradeVolume) external _reentryLock_
