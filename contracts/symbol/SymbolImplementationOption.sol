@@ -341,6 +341,7 @@ contract SymbolImplementationOption is SymbolStorage, NameVersion {
         int256 intrinsicValue;
         int256 timeValue;
         int256 delta;
+        int256 u;
         int256 theoreticalPrice;
         int256 dynamicInitialMarginRatio;
     }
@@ -387,7 +388,7 @@ contract SymbolImplementationOption is SymbolStorage, NameVersion {
         data.intrinsicValue = isCall ?
                               (data.curIndexPrice - strikePrice).max(0) :
                               (strikePrice - data.curIndexPrice).max(0);
-        (data.timeValue, data.delta) = EverlastingOptionPricing.getEverlastingTimeValueAndDelta(
+        (data.timeValue, data.delta, data.u) = EverlastingOptionPricing.getEverlastingTimeValueAndDelta(
             data.curIndexPrice, strikePrice, volatility, fundingPeriod * ONE / 31536000
         );
         data.theoreticalPrice = data.intrinsicValue + data.timeValue;
@@ -422,8 +423,10 @@ contract SymbolImplementationOption is SymbolStorage, NameVersion {
         data.tradersPnl = -DpmmLinearPricing.calculateCost(data.theoreticalPrice, data.K, data.netVolume, -data.netVolume) - data.netCost;
     }
 
-    function _getInitialMarginRequired(Data memory data) internal pure {
-        data.initialMarginRequired = data.netVolume.abs() * data.curIndexPrice / ONE * data.dynamicInitialMarginRatio / ONE;
+    function _getInitialMarginRequired(Data memory data) internal view {
+        int256 deltaPart = data.delta * (isCall ? data.curIndexPrice / 10 : -data.curIndexPrice / 10) / ONE;
+        int256 gammaPart = (data.u * data.u / ONE - ONE) * data.timeValue / ONE / 800;
+        data.initialMarginRequired = data.netVolume.abs() * (deltaPart + gammaPart) / ONE;
     }
 
     function _getRemoveLiquidityPenalty(Data memory data, int256 newLiquidity)

@@ -32,7 +32,8 @@ contract PoolImplementation is PoolStorage, NameVersion {
     event AddMargin(
         uint256 indexed pTokenId,
         address indexed underlying,
-        uint256 amount
+        uint256 amount,
+        int256 newMargin
     );
 
     event RemoveMargin(
@@ -151,15 +152,17 @@ contract PoolImplementation is PoolStorage, NameVersion {
         }
     }
 
-    function claimVenus() external {
-        uint256 lTokenId = lToken.getTokenIdOf(msg.sender);
+    function claimVenusLp(address account) external {
+        uint256 lTokenId = lToken.getTokenIdOf(account);
         if (lTokenId != 0) {
-            IVault(lpInfos[lTokenId].vault).claimVenus(msg.sender);
+            IVault(lpInfos[lTokenId].vault).claimVenus(account);
         }
+    }
 
-        uint256 pTokenId = pToken.getTokenIdOf(msg.sender);
+    function claimVenusTrader(address account) external {
+        uint256 pTokenId = pToken.getTokenIdOf(account);
         if (pTokenId != 0) {
-            IVault(tdInfos[pTokenId].vault).claimVenus(msg.sender);
+            IVault(tdInfos[pTokenId].vault).claimVenus(account);
         }
     }
 
@@ -271,11 +274,13 @@ contract PoolImplementation is PoolStorage, NameVersion {
         _getTdInfo(data, true);
         _transferIn(data, amount);
 
+        int256 newMargin = IVault(data.vault).getBorrowLimit().utoi() + data.amountB0;
+
         TdInfo storage info = tdInfos[data.tokenId];
         info.vault = data.vault;
         info.amountB0 = data.amountB0;
 
-        emit AddMargin(data.tokenId, underlying, amount);
+        emit AddMargin(data.tokenId, underlying, amount, newMargin);
     }
 
     function removeMargin(address underlying, uint256 amount) external _reentryLock_

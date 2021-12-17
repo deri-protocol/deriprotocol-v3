@@ -25,7 +25,9 @@ interface IPool is INameVersion, IAdmin {
 
     function approveSwapper(address underlying) external;
 
-    function claimVenus() external;
+    function claimVenusLp(address account) external;
+
+    function claimVenusTrader(address account) external;
 
     function addLiquidity(address underlying, uint256 amount) external payable;
 
