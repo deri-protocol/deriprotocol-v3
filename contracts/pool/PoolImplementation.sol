@@ -438,7 +438,7 @@ contract PoolImplementation is PoolStorage, NameVersion {
     //================================================================================
 
     struct OracleSignature {
-        string oracleSymbol;
+        bytes32 oracleSymbolId;
         uint256 timestamp;
         uint256 value;
         uint8 v;
@@ -450,7 +450,7 @@ contract PoolImplementation is PoolStorage, NameVersion {
         for (uint256 i = 0; i < oracleSignatures.length; i++) {
             OracleSignature memory signature = oracleSignatures[i];
             oracleManager.updateValue(
-                keccak256(abi.encodePacked(signature.oracleSymbol)),
+                signature.oracleSymbolId,
                 signature.timestamp,
                 signature.value,
                 signature.v,
