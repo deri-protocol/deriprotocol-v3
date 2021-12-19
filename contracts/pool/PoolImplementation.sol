@@ -16,6 +16,8 @@ import '../library/SafeERC20.sol';
 
 contract PoolImplementation is PoolStorage, NameVersion {
 
+    event CollectProtocolFee(address indexed collector, uint256 amount);
+
     event AddLiquidity(
         uint256 indexed lTokenId,
         address indexed underlying,
@@ -154,6 +156,14 @@ contract PoolImplementation is PoolStorage, NameVersion {
             }
             IERC20(underlying).safeApprove(address(swapper), type(uint256).max);
         }
+    }
+
+    function collectProtocolFee() external _onlyAdmin_ {
+        require(protocolFeeCollector != address(0), 'PoolImplementation.collectProtocolFee: collector not set');
+        uint256 amount = protocolFeeAccrued.itou();
+        protocolFeeAccrued = 0;
+        IERC20(tokenB0).safeTransfer(protocolFeeCollector, amount);
+        emit CollectProtocolFee(protocolFeeCollector, amount);
     }
 
     function claimVenusLp(address account) external {

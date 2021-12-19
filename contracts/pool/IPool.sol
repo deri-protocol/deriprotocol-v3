@@ -25,20 +25,31 @@ interface IPool is INameVersion, IAdmin {
 
     function approveSwapper(address underlying) external;
 
+    function collectProtocolFee() external;
+
     function claimVenusLp(address account) external;
 
     function claimVenusTrader(address account) external;
 
-    function addLiquidity(address underlying, uint256 amount) external payable;
+    struct OracleSignature {
+        bytes32 oracleSymbolId;
+        uint256 timestamp;
+        uint256 value;
+        uint8 v;
+        bytes32 r;
+        bytes32 s;
+    }
 
-    function removeLiquidity(address underlying, uint256 amount) external;
+    function addLiquidity(address underlying, uint256 amount, OracleSignature[] memory oracleSignatures) external payable;
 
-    function addMargin(address underlying, uint256 amount) external payable;
+    function removeLiquidity(address underlying, uint256 amount, OracleSignature[] memory oracleSignatures) external;
 
-    function removeMargin(address underlying, uint256 amount) external;
+    function addMargin(address underlying, uint256 amount, OracleSignature[] memory oracleSignatures) external payable;
 
-    function trade(string memory symbolName, int256 tradeVolume) external;
+    function removeMargin(address underlying, uint256 amount, OracleSignature[] memory oracleSignatures) external;
 
-    function liquidate(uint256 pTokenId) external;
+    function trade(string memory symbolName, int256 tradeVolume, OracleSignature[] memory oracleSignatures) external;
+
+    function liquidate(uint256 pTokenId, OracleSignature[] memory oracleSignatures) external;
 
 }
