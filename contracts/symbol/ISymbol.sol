@@ -55,6 +55,12 @@ interface ISymbol {
         int256 tradeRealizedCost;
     }
 
+    struct Position {
+        int256 volume;
+        int256 cost;
+        int256 cumulativeFundingPerVolume;
+    }
+
     function implementation() external view returns (address);
 
     function symbol() external view returns (string memory);
@@ -75,6 +81,8 @@ interface ISymbol {
 
     function nPositionHolders() external view returns (uint256);
 
+    function positions(uint256 pTokenId) external view returns (Position memory);
+
     function setImplementation(address newImplementation) external;
 
     function manager() external view returns (address);
@@ -83,7 +91,7 @@ interface ISymbol {
 
     function symbolId() external view returns (bytes32);
 
-    function feeRatio() external view returns (int256);
+    function feeRatio() external view returns (int256);             // futures only
 
     function alpha() external view returns (int256);
 
@@ -100,6 +108,20 @@ interface ISymbol {
     function timeThreshold() external view returns (uint256);
 
     function isCloseOnly() external view returns (bool);
+
+    function priceId() external view returns (bytes32);              // option only
+
+    function volatilityId() external view returns (bytes32);         // option only
+
+    function feeRatioITM() external view returns (int256);           // option only
+
+    function feeRatioOTM() external view returns (int256);           // option only
+
+    function strikePrice() external view returns (int256);           // option only
+
+    function minInitialMarginRatio() external view returns (int256); // option only
+
+    function isCall() external view returns (bool);                  // option only
 
     function hasPosition(uint256 pTokenId) external view returns (bool);
 

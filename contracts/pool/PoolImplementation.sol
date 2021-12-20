@@ -6,6 +6,7 @@ import '../token/IERC20.sol';
 import '../token/IDToken.sol';
 import '../vault/IVToken.sol';
 import '../vault/IVault.sol';
+import '../oracle/IOracleManager.sol';
 import '../swapper/ISwapper.sol';
 import '../symbol/ISymbolManager.sol';
 import './PoolStorage.sol';
@@ -14,6 +15,8 @@ import '../library/SafeMath.sol';
 import '../library/SafeERC20.sol';
 
 contract PoolImplementation is PoolStorage, NameVersion {
+
+    event CollectProtocolFee(address indexed collector, uint256 amount);
 
     event AddLiquidity(
         uint256 indexed lTokenId,
@@ -32,7 +35,8 @@ contract PoolImplementation is PoolStorage, NameVersion {
     event AddMargin(
         uint256 indexed pTokenId,
         address indexed underlying,
-        uint256 amount
+        uint256 amount,
+        int256 newMargin
     );
 
     event RemoveMargin(
@@ -66,6 +70,8 @@ contract PoolImplementation is PoolStorage, NameVersion {
 
     IDToken public immutable pToken;
 
+    IOracleManager public immutable oracleManager;
+
     ISwapper public immutable swapper;
 
     ISymbolManager public immutable symbolManager;
@@ -85,7 +91,7 @@ contract PoolImplementation is PoolStorage, NameVersion {
     int256 public immutable liquidationRewardCutRatio;
 
     constructor (
-        address[10] memory addresses_,
+        address[11] memory addresses_,
         uint256[7] memory parameters_
     ) NameVersion('PoolImplementation', '3.0.1')
     {
@@ -97,8 +103,9 @@ contract PoolImplementation is PoolStorage, NameVersion {
         vTokenETH = addresses_[5];
         lToken = IDToken(addresses_[6]);
         pToken = IDToken(addresses_[7]);
-        swapper = ISwapper(addresses_[8]);
-        symbolManager = ISymbolManager(addresses_[9]);
+        oracleManager = IOracleManager(addresses_[8]);
+        swapper = ISwapper(addresses_[9]);
+        symbolManager = ISymbolManager(addresses_[10]);
 
         keepRatioB0 = parameters_[0];
         minRatioB0 = parameters_[1].utoi();
@@ -151,22 +158,34 @@ contract PoolImplementation is PoolStorage, NameVersion {
         }
     }
 
-    function claimVenus() external {
-        uint256 lTokenId = lToken.getTokenIdOf(msg.sender);
-        if (lTokenId != 0) {
-            IVault(lpInfos[lTokenId].vault).claimVenus(msg.sender);
-        }
+    function collectProtocolFee() external _onlyAdmin_ {
+        require(protocolFeeCollector != address(0), 'PoolImplementation.collectProtocolFee: collector not set');
+        uint256 amount = protocolFeeAccrued.itou();
+        protocolFeeAccrued = 0;
+        IERC20(tokenB0).safeTransfer(protocolFeeCollector, amount);
+        emit CollectProtocolFee(protocolFeeCollector, amount);
+    }
 
-        uint256 pTokenId = pToken.getTokenIdOf(msg.sender);
+    function claimVenusLp(address account) external {
+        uint256 lTokenId = lToken.getTokenIdOf(account);
+        if (lTokenId != 0) {
+            IVault(lpInfos[lTokenId].vault).claimVenus(account);
+        }
+    }
+
+    function claimVenusTrader(address account) external {
+        uint256 pTokenId = pToken.getTokenIdOf(account);
         if (pTokenId != 0) {
-            IVault(tdInfos[pTokenId].vault).claimVenus(msg.sender);
+            IVault(tdInfos[pTokenId].vault).claimVenus(account);
         }
     }
 
     //================================================================================
 
-    function addLiquidity(address underlying, uint256 amount) external payable _reentryLock_
+    function addLiquidity(address underlying, uint256 amount, OracleSignature[] memory oracleSignatures) external payable _reentryLock_
     {
+        _updateOracles(oracleSignatures);
+
         if (underlying == address(0)) amount = msg.value;
 
         Data memory data = _initializeData(underlying);
@@ -206,8 +225,10 @@ contract PoolImplementation is PoolStorage, NameVersion {
         emit AddLiquidity(data.tokenId, underlying, amount, newLiquidity);
     }
 
-    function removeLiquidity(address underlying, uint256 amount) external _reentryLock_
+    function removeLiquidity(address underlying, uint256 amount, OracleSignature[] memory oracleSignatures) external _reentryLock_
     {
+        _updateOracles(oracleSignatures);
+
         Data memory data = _initializeData(underlying);
         _getLpInfo(data, false);
 
@@ -259,8 +280,10 @@ contract PoolImplementation is PoolStorage, NameVersion {
         emit RemoveLiquidity(data.tokenId, underlying, amount, newLiquidity);
     }
 
-    function addMargin(address underlying, uint256 amount) external payable _reentryLock_
+    function addMargin(address underlying, uint256 amount, OracleSignature[] memory oracleSignatures) external payable _reentryLock_
     {
+        _updateOracles(oracleSignatures);
+
         if (underlying == address(0)) amount = msg.value;
 
         Data memory data;
@@ -271,15 +294,19 @@ contract PoolImplementation is PoolStorage, NameVersion {
         _getTdInfo(data, true);
         _transferIn(data, amount);
 
+        int256 newMargin = IVault(data.vault).getBorrowLimit().utoi() + data.amountB0;
+
         TdInfo storage info = tdInfos[data.tokenId];
         info.vault = data.vault;
         info.amountB0 = data.amountB0;
 
-        emit AddMargin(data.tokenId, underlying, amount);
+        emit AddMargin(data.tokenId, underlying, amount, newMargin);
     }
 
-    function removeMargin(address underlying, uint256 amount) external _reentryLock_
+    function removeMargin(address underlying, uint256 amount, OracleSignature[] memory oracleSignatures) external _reentryLock_
     {
+        _updateOracles(oracleSignatures);
+
         Data memory data = _initializeData(underlying);
         _getTdInfo(data, false);
 
@@ -308,8 +335,10 @@ contract PoolImplementation is PoolStorage, NameVersion {
         emit RemoveMargin(data.tokenId, underlying, amount, newBorrowLimit.utoi() + data.amountB0);
     }
 
-    function trade(string memory symbolName, int256 tradeVolume) external _reentryLock_
+    function trade(string memory symbolName, int256 tradeVolume, OracleSignature[] memory oracleSignatures) external _reentryLock_
     {
+        _updateOracles(oracleSignatures);
+
         bytes32 symbolId = keccak256(abi.encodePacked(symbolName));
 
         Data memory data = _initializeData();
@@ -342,8 +371,10 @@ contract PoolImplementation is PoolStorage, NameVersion {
         tdInfos[data.tokenId].amountB0 = data.amountB0;
     }
 
-    function liquidate(uint256 pTokenId) external _reentryLock_
+    function liquidate(uint256 pTokenId, OracleSignature[] memory oracleSignatures) external _reentryLock_
     {
+        _updateOracles(oracleSignatures);
+
         require(
             pToken.exists(pTokenId),
             'PoolImplementation.liquidate: nonexistent pTokenId'
@@ -415,6 +446,29 @@ contract PoolImplementation is PoolStorage, NameVersion {
     }
 
     //================================================================================
+
+    struct OracleSignature {
+        bytes32 oracleSymbolId;
+        uint256 timestamp;
+        uint256 value;
+        uint8 v;
+        bytes32 r;
+        bytes32 s;
+    }
+
+    function _updateOracles(OracleSignature[] memory oracleSignatures) internal {
+        for (uint256 i = 0; i < oracleSignatures.length; i++) {
+            OracleSignature memory signature = oracleSignatures[i];
+            oracleManager.updateValue(
+                signature.oracleSymbolId,
+                signature.timestamp,
+                signature.value,
+                signature.v,
+                signature.r,
+                signature.s
+            );
+        }
+    }
 
     struct Data {
         int256 liquidity;

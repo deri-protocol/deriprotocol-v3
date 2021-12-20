@@ -245,9 +245,11 @@ library EverlastingOptionPricing {
         return _exp_2(int256To128((p << 64) / ONE)) * ONE >> 64;
     }
 
-    function getEverlastingTimeValue(int256 S, int256 K, int256 V, int256 T) internal pure returns (int256 timeValue) {
+    function getEverlastingTimeValue(int256 S, int256 K, int256 V, int256 T)
+    internal pure returns (int256 timeValue, int256 u)
+    {
         int256 u2 = ONE * 8 * ONE / V * ONE / V * ONE / T + ONE;
-        int256 u = utoi(sqrt(itou(u2)));
+        u = utoi(sqrt(itou(u2)));
 
         uint256 x = itou(S * ONE / K);
         if (S > K) {
@@ -259,9 +261,11 @@ library EverlastingOptionPricing {
         }
     }
 
-    function getEverlastingTimeValueAndDelta(int256 S, int256 K, int256 V, int256 T) internal pure returns (int256 timeValue, int256 delta) {
+    function getEverlastingTimeValueAndDelta(int256 S, int256 K, int256 V, int256 T)
+    internal pure returns (int256 timeValue, int256 delta, int256 u)
+    {
         int256 u2 = ONE * 8 * ONE / V * ONE / V * ONE / T + ONE;
-        int256 u = utoi(sqrt(itou(u2)));
+        u = utoi(sqrt(itou(u2)));
 
         uint256 x = itou(S * ONE / K);
         if (S > K) {

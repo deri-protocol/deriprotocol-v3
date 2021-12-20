@@ -6,6 +6,8 @@ import '../utils/Admin.sol';
 
 abstract contract SymbolManagerStorage is Admin {
 
+    // admin will be truned in to Timelock after deployment
+
     event NewImplementation(address newImplementation);
 
     address public implementation;

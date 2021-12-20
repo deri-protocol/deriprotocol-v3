@@ -221,7 +221,7 @@ contract SymbolManagerImplementation is SymbolManagerStorage, NameVersion {
 
             ss.funding += s.funding;
             ss.deltaTradersPnl += s.deltaTradersPnl;
-            deltaInitialMarginRequired += deltaInitialMarginRequired;
+            deltaInitialMarginRequired += s.deltaInitialMarginRequired;
 
             ss.traderFunding += s.traderFunding;
             ss.traderPnl += s.traderPnl;
