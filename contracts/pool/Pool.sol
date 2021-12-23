@@ -3,7 +3,6 @@
 pragma solidity >=0.8.0 <0.9.0;
 
 import './IPool.sol';
-import '../vault/IVault.sol';
 import './PoolStorage.sol';
 
 contract Pool is PoolStorage {
