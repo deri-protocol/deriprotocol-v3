@@ -10,6 +10,10 @@ library Log {
         console.log('\n==================== %s ====================', name);
     }
 
+    function log(string memory value, string memory name) internal view {
+        console.log('%s: %s', name, value);
+    }
+
     function log(uint256 value, string memory name) internal view {
         console.log('%s: %s', name, value);
     }
@@ -25,6 +29,11 @@ library Log {
 
     function log(bool value, string memory name) internal view {
         console.log('%s: %s', name, value);
+    }
+
+    function log(bytes32 value, string memory name) internal view {
+        console.log('%s:', name);
+        console.logBytes32(value);
     }
 
     function log(bytes memory value, string memory name) internal view {

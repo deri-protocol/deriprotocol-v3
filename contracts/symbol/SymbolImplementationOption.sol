@@ -39,6 +39,8 @@ contract SymbolImplementationOption is SymbolStorage, NameVersion {
 
     int256 public immutable minTradeVolume;
 
+    int256 public immutable minInitialMarginRatio;
+
     int256 public immutable initialMarginRatio;
 
     int256 public immutable maintenanceMarginRatio;
@@ -60,7 +62,7 @@ contract SymbolImplementationOption is SymbolStorage, NameVersion {
         address manager_,
         address oracleManager_,
         string[3] memory symbols_,
-        int256[10] memory parameters_,
+        int256[11] memory parameters_,
         bool[2] memory boolParameters_
     ) NameVersion('SymbolImplementationOption', '3.0.1')
     {
@@ -78,10 +80,11 @@ contract SymbolImplementationOption is SymbolStorage, NameVersion {
         alpha = parameters_[3];
         fundingPeriod = parameters_[4];
         minTradeVolume = parameters_[5];
-        initialMarginRatio = parameters_[6];
-        maintenanceMarginRatio = parameters_[7];
-        pricePercentThreshold = parameters_[8];
-        timeThreshold = parameters_[9].itou();
+        minInitialMarginRatio = parameters_[6];
+        initialMarginRatio = parameters_[7];
+        maintenanceMarginRatio = parameters_[8];
+        pricePercentThreshold = parameters_[9];
+        timeThreshold = parameters_[10].itou();
 
         isCall = boolParameters_[0];
         isCloseOnly = boolParameters_[1];
@@ -417,7 +420,9 @@ contract SymbolImplementationOption is SymbolStorage, NameVersion {
         int256 deltaPart = data.delta * (isCall ? data.curIndexPrice : -data.curIndexPrice) / ONE * maintenanceMarginRatio / ONE;
         int256 gammaPart = (data.u * data.u / ONE - ONE) * data.timeValue / ONE / 8 * maintenanceMarginRatio / ONE * maintenanceMarginRatio / ONE;
         data.maintenanceMarginPerVolume = deltaPart + gammaPart;
-        data.initialMarginPerVolume = data.maintenanceMarginPerVolume * initialMarginRatio / maintenanceMarginRatio;
+        data.initialMarginPerVolume = (data.curIndexPrice * minInitialMarginRatio / ONE).max(
+            data.maintenanceMarginPerVolume * initialMarginRatio / maintenanceMarginRatio
+        );
         data.initialMarginRequired = data.netVolume.abs() * data.initialMarginPerVolume / ONE;
     }
 

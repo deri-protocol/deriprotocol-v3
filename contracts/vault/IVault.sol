@@ -14,11 +14,11 @@ interface IVault is INameVersion {
 
     function tokenXVS() external view returns (address);
 
-    function borrowLimitMultiplier() external view returns (uint256);
+    function vaultLiquidityMultiplier() external view returns (uint256);
 
-    function getBorrowLimit() external view  returns (uint256);
+    function getVaultLiquidity() external view  returns (uint256);
 
-    function getHypotheticalBorrowLimit(address vTokenModify, uint256 redeemVTokens) external view returns (uint256);
+    function getHypotheticalVaultLiquidity(address vTokenModify, uint256 redeemVTokens) external view returns (uint256);
 
     function isInMarket(address vToken) external view returns (bool);
 
