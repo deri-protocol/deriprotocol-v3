@@ -119,6 +119,8 @@ interface ISymbol {
 
     function strikePrice() external view returns (int256);           // option only
 
+    function minInitialMarginRatio() external view returns (int256); // option only
+
     function isCall() external view returns (bool);                  // option only
 
     function hasPosition(uint256 pTokenId) external view returns (bool);
