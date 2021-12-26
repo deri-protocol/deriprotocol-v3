@@ -18,6 +18,8 @@ contract PoolImplementation is PoolStorage, NameVersion {
 
     event CollectProtocolFee(address indexed collector, uint256 amount);
 
+    event AddMarket(address indexed market);
+
     event AddLiquidity(
         uint256 indexed lTokenId,
         address indexed underlying,
@@ -147,6 +149,8 @@ contract PoolImplementation is PoolStorage, NameVersion {
 
         markets[underlying] = market;
         approveSwapper(underlying);
+
+        emit AddMarket(market);
     }
 
     function approveSwapper(address underlying) public _onlyAdmin_ {
