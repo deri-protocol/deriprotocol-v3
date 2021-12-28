@@ -22,7 +22,7 @@ contract VaultImplementation is NameVersion {
 
     address public immutable tokenXVS;
 
-    uint256 public immutable borrowLimitMultiplier;
+    uint256 public immutable vaultLiquidityMultiplier;
 
     modifier _onlyPool_() {
         require(msg.sender == pool, 'VaultImplementation: only pool');
@@ -33,12 +33,12 @@ contract VaultImplementation is NameVersion {
         address pool_,
         address comptroller_,
         address vTokenETH_,
-        uint256 borrowLimitMultiplier_
+        uint256 vaultLiquidityMultiplier_
     ) NameVersion('VaultImplementation', '3.0.1') {
         pool = pool_;
         comptroller = comptroller_;
         vTokenETH = vTokenETH_;
-        borrowLimitMultiplier = borrowLimitMultiplier_;
+        vaultLiquidityMultiplier = vaultLiquidityMultiplier_;
         tokenXVS = IComptroller(comptroller_).getXVSAddress();
 
         require(
@@ -55,19 +55,19 @@ contract VaultImplementation is NameVersion {
         );
     }
 
-    function getBorrowLimit() external view returns (uint256) {
+    function getVaultLiquidity() external view returns (uint256) {
         (uint256 err, uint256 liquidity, uint256 shortfall) = IComptroller(comptroller).getAccountLiquidity(address(this));
-        require(err == 0 && shortfall == 0, 'VaultImplementation.getBorrowLimit: error');
-        return liquidity * borrowLimitMultiplier / ONE;
+        require(err == 0 && shortfall == 0, 'VaultImplementation.getVaultLiquidity: error');
+        return liquidity * vaultLiquidityMultiplier / ONE;
     }
 
-    function getHypotheticalBorrowLimit(address vTokenModify, uint256 redeemVTokens)
+    function getHypotheticalVaultLiquidity(address vTokenModify, uint256 redeemVTokens)
     external view returns (uint256)
     {
         (uint256 err, uint256 liquidity, uint256 shortfall) =
         IComptroller(comptroller).getHypotheticalAccountLiquidity(address(this), vTokenModify, redeemVTokens, 0);
-        require(err == 0 && shortfall == 0, 'VaultImplementation.getHypotheticalBorrowLimit: error');
-        return liquidity * borrowLimitMultiplier / ONE;
+        require(err == 0 && shortfall == 0, 'VaultImplementation.getHypotheticalVaultLiquidity: error');
+        return liquidity * vaultLiquidityMultiplier / ONE;
     }
 
     function isInMarket(address vToken) public view returns (bool) {

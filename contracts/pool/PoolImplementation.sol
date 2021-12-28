@@ -18,6 +18,8 @@ contract PoolImplementation is PoolStorage, NameVersion {
 
     event CollectProtocolFee(address indexed collector, uint256 amount);
 
+    event AddMarket(address indexed market);
+
     event AddLiquidity(
         uint256 indexed lTokenId,
         address indexed underlying,
@@ -76,7 +78,7 @@ contract PoolImplementation is PoolStorage, NameVersion {
 
     ISymbolManager public immutable symbolManager;
 
-    uint256 public immutable keepRatioB0;
+    uint256 public immutable reserveRatioB0;
 
     int256 public immutable minRatioB0;
 
@@ -107,7 +109,7 @@ contract PoolImplementation is PoolStorage, NameVersion {
         swapper = ISwapper(addresses_[9]);
         symbolManager = ISymbolManager(addresses_[10]);
 
-        keepRatioB0 = parameters_[0];
+        reserveRatioB0 = parameters_[0];
         minRatioB0 = parameters_[1].utoi();
         poolInitialMarginMultiplier = parameters_[2].utoi();
         protocolFeeCollectRatio = parameters_[3].utoi();
@@ -122,6 +124,7 @@ contract PoolImplementation is PoolStorage, NameVersion {
     }
 
     function addMarket(address market) external _onlyAdmin_ {
+        // underlying is the underlying token of Venus market
         address underlying = IVToken(market).underlying();
         require(
             IERC20(underlying).decimals() == 18,
@@ -146,6 +149,8 @@ contract PoolImplementation is PoolStorage, NameVersion {
 
         markets[underlying] = market;
         approveSwapper(underlying);
+
+        emit AddMarket(market);
     }
 
     function approveSwapper(address underlying) public _onlyAdmin_ {
@@ -203,7 +208,7 @@ contract PoolImplementation is PoolStorage, NameVersion {
         _settleLp(data);
         _transferIn(data, amount);
 
-        int256 newLiquidity = IVault(data.vault).getBorrowLimit().utoi() + data.amountB0;
+        int256 newLiquidity = IVault(data.vault).getVaultLiquidity().utoi() + data.amountB0;
         data.liquidity += newLiquidity - data.lpLiquidity;
         data.lpLiquidity = newLiquidity;
 
@@ -243,8 +248,8 @@ contract PoolImplementation is PoolStorage, NameVersion {
             uint256 redeemAmount = amount >= underlyingBalance ?
                                    vTokenBalance :
                                    vTokenBalance * amount / underlyingBalance;
-            uint256 bl1 = IVault(data.vault).getBorrowLimit();
-            uint256 bl2 = IVault(data.vault).getHypotheticalBorrowLimit(data.market, redeemAmount);
+            uint256 bl1 = IVault(data.vault).getVaultLiquidity();
+            uint256 bl2 = IVault(data.vault).getHypotheticalVaultLiquidity(data.market, redeemAmount);
             removedLiquidity = (bl1 - bl2).utoi();
         }
 
@@ -257,9 +262,9 @@ contract PoolImplementation is PoolStorage, NameVersion {
         data.amountB0 -= s.removeLiquidityPenalty;
 
         _settleLp(data);
-        uint256 newBorrowLimit = _transferOut(data, amount, vTokenBalance, underlyingBalance);
+        uint256 newVaultLiquidity = _transferOut(data, amount, vTokenBalance, underlyingBalance);
 
-        int256 newLiquidity = newBorrowLimit.utoi() + data.amountB0;
+        int256 newLiquidity = newVaultLiquidity.utoi() + data.amountB0;
         data.liquidity += newLiquidity - data.lpLiquidity;
         data.lpLiquidity = newLiquidity;
 
@@ -294,7 +299,7 @@ contract PoolImplementation is PoolStorage, NameVersion {
         _getTdInfo(data, true);
         _transferIn(data, amount);
 
-        int256 newMargin = IVault(data.vault).getBorrowLimit().utoi() + data.amountB0;
+        int256 newMargin = IVault(data.vault).getVaultLiquidity().utoi() + data.amountB0;
 
         TdInfo storage info = tdInfos[data.tokenId];
         info.vault = data.vault;
@@ -320,10 +325,10 @@ contract PoolImplementation is PoolStorage, NameVersion {
         data.amountB0 -= s.traderFunding;
 
         (uint256 vTokenBalance, uint256 underlyingBalance) = IVault(data.vault).getBalances(data.market);
-        uint256 newBorrowLimit = _transferOut(data, amount, vTokenBalance, underlyingBalance);
+        uint256 newVaultLiquidity = _transferOut(data, amount, vTokenBalance, underlyingBalance);
 
         require(
-            newBorrowLimit.utoi() + data.amountB0 + s.traderPnl >= s.traderInitialMarginRequired,
+            newVaultLiquidity.utoi() + data.amountB0 + s.traderPnl >= s.traderInitialMarginRequired,
             'PoolImplementation.removeMargin: insufficient margin'
         );
 
@@ -332,7 +337,7 @@ contract PoolImplementation is PoolStorage, NameVersion {
 
         tdInfos[data.tokenId].amountB0 = data.amountB0;
 
-        emit RemoveMargin(data.tokenId, underlying, amount, newBorrowLimit.utoi() + data.amountB0);
+        emit RemoveMargin(data.tokenId, underlying, amount, newVaultLiquidity.utoi() + data.amountB0);
     }
 
     function trade(string memory symbolName, int256 tradeVolume, OracleSignature[] memory oracleSignatures) external _reentryLock_
@@ -353,7 +358,7 @@ contract PoolImplementation is PoolStorage, NameVersion {
         data.cumulativePnlPerLiquidity += undistributedPnl * ONE / data.liquidity;
 
         data.amountB0 -= s.traderFunding + s.tradeFee + s.tradeRealizedCost;
-        int256 margin = IVault(data.vault).getBorrowLimit().utoi() + data.amountB0;
+        int256 margin = IVault(data.vault).getVaultLiquidity().utoi() + data.amountB0;
 
         require(
             (data.liquidity + data.lpsPnl) * ONE >= s.initialMarginRequired * poolInitialMarginMultiplier,
@@ -390,7 +395,7 @@ contract PoolImplementation is PoolStorage, NameVersion {
         int256 undistributedPnl = s.funding - s.deltaTradersPnl + s.traderRealizedCost;
 
         data.amountB0 -= s.traderFunding;
-        int256 margin = IVault(data.vault).getBorrowLimit().utoi() + data.amountB0;
+        int256 margin = IVault(data.vault).getVaultLiquidity().utoi() + data.amountB0;
 
         require(
             s.traderMaintenanceMarginRequired > 0,
@@ -592,14 +597,14 @@ contract PoolImplementation is PoolStorage, NameVersion {
             v.mint{value: amount}();
         }
         else if (data.underlying == tokenB0) {
-            uint256 keep = amount * keepRatioB0 / UONE;
-            uint256 deposit = amount - keep;
+            uint256 reserve = amount * reserveRatioB0 / UONE;
+            uint256 deposit = amount - reserve;
 
             IERC20(data.underlying).safeTransferFrom(data.account, address(this), amount);
             IERC20(data.underlying).safeTransfer(data.vault, deposit);
 
             v.mint(data.market, deposit);
-            data.amountB0 += keep.utoi();
+            data.amountB0 += reserve.utoi();
         }
         else {
             IERC20(data.underlying).safeTransferFrom(data.account, data.vault, amount);
@@ -608,7 +613,7 @@ contract PoolImplementation is PoolStorage, NameVersion {
     }
 
     function _transferOut(Data memory data, uint256 amount, uint256 vTokenBalance, uint256 underlyingBalance)
-    internal returns (uint256 newBorrowLimit)
+    internal returns (uint256 newVaultLiquidity)
     {
         IVault v = IVault(data.vault);
 
@@ -658,9 +663,9 @@ contract PoolImplementation is PoolStorage, NameVersion {
             }
         }
 
-        newBorrowLimit = v.getBorrowLimit();
+        newVaultLiquidity = v.getVaultLiquidity();
 
-        if (newBorrowLimit == 0 && amount >= UMAX && data.amountB0 > 0) {
+        if (newVaultLiquidity == 0 && amount >= UMAX && data.amountB0 > 0) {
             uint256 own = data.amountB0.itou();
             uint256 resultBX;
 
