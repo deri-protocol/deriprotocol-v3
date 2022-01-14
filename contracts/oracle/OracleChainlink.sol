@@ -16,7 +16,7 @@ contract OracleChainlink is IOracle, NameVersion {
     IChainlinkFeed public immutable feed;
     uint256 public immutable feedDecimals;
 
-    constructor (string memory symbol_, address feed_) NameVersion('OracleChainlink', '3.0.1') {
+    constructor (string memory symbol_, address feed_) NameVersion('OracleChainlink', '3.0.2') {
         symbol = symbol_;
         symbolId = keccak256(abi.encodePacked(symbol_));
         feed = IChainlinkFeed(feed_);
