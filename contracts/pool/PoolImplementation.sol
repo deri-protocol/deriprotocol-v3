@@ -95,7 +95,7 @@ contract PoolImplementation is PoolStorage, NameVersion {
     constructor (
         address[11] memory addresses_,
         uint256[7] memory parameters_
-    ) NameVersion('PoolImplementation', '3.0.1')
+    ) NameVersion('PoolImplementation', '3.0.2')
     {
         vaultTemplate = addresses_[0];
         vaultImplementation = addresses_[1];

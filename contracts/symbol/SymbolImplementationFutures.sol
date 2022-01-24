@@ -53,7 +53,7 @@ contract SymbolImplementationFutures is SymbolStorage, NameVersion {
         string memory symbol_,
         int256[9] memory parameters_,
         bool isCloseOnly_
-    ) NameVersion('SymbolImplementationFutures', '3.0.1')
+    ) NameVersion('SymbolImplementationFutures', '3.0.2')
     {
         manager = manager_;
         oracleManager = oracleManager_;

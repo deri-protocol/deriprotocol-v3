@@ -66,7 +66,7 @@ contract SymbolImplementationOption is SymbolStorage, NameVersion {
         string[3] memory symbols_,
         int256[12] memory parameters_,
         bool[2] memory boolParameters_
-    ) NameVersion('SymbolImplementationOption', '3.0.1')
+    ) NameVersion('SymbolImplementationOption', '3.0.2')
     {
         manager = manager_;
         oracleManager = oracleManager_;

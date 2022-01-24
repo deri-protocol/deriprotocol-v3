@@ -29,7 +29,7 @@ contract SymbolManagerImplementation is SymbolManagerStorage, NameVersion {
         _;
     }
 
-    constructor (address pool_) NameVersion('SymbolManagerImplementation', '3.0.1') {
+    constructor (address pool_) NameVersion('SymbolManagerImplementation', '3.0.2') {
         pool = pool_;
     }
 
