@@ -67,7 +67,7 @@ interface ISymbolManager {
     function settleSymbolsOnRemoveMargin(uint256 pTokenId, int256 liquidity)
     external returns (SettlementOnRemoveMargin memory ss);
 
-    function settleSymbolsOnTrade(uint256 pTokenId, bytes32 symbolId, int256 tradeVolume, int256 liquidity)
+    function settleSymbolsOnTrade(uint256 pTokenId, bytes32 symbolId, int256 tradeVolume, int256 liquidity, int256 priceLimit)
     external returns (SettlementOnTrade memory ss);
 
     function settleSymbolsOnLiquidate(uint256 pTokenId, int256 liquidity)

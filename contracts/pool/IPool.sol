@@ -48,7 +48,7 @@ interface IPool is INameVersion, IAdmin {
 
     function removeMargin(address underlying, uint256 amount, OracleSignature[] memory oracleSignatures) external;
 
-    function trade(string memory symbolName, int256 tradeVolume, OracleSignature[] memory oracleSignatures) external;
+    function trade(string memory symbolName, int256 tradeVolume, int256 priceLimit, OracleSignature[] memory oracleSignatures) external;
 
     function liquidate(uint256 pTokenId, OracleSignature[] memory oracleSignatures) external;
 

@@ -340,7 +340,7 @@ contract PoolImplementation is PoolStorage, NameVersion {
         emit RemoveMargin(data.tokenId, underlying, amount, newVaultLiquidity.utoi() + data.amountB0);
     }
 
-    function trade(string memory symbolName, int256 tradeVolume, OracleSignature[] memory oracleSignatures) external _reentryLock_
+    function trade(string memory symbolName, int256 tradeVolume, int256 priceLimit, OracleSignature[] memory oracleSignatures) external _reentryLock_
     {
         _updateOracles(oracleSignatures);
 
@@ -350,7 +350,7 @@ contract PoolImplementation is PoolStorage, NameVersion {
         _getTdInfo(data, false);
 
         ISymbolManager.SettlementOnTrade memory s =
-        symbolManager.settleSymbolsOnTrade(data.tokenId, symbolId, tradeVolume, data.liquidity + data.lpsPnl);
+        symbolManager.settleSymbolsOnTrade(data.tokenId, symbolId, tradeVolume, data.liquidity + data.lpsPnl, priceLimit);
 
         int256 collect = s.tradeFee * protocolFeeCollectRatio / ONE;
         int256 undistributedPnl = s.funding - s.deltaTradersPnl + s.tradeFee - collect + s.tradeRealizedCost;
@@ -366,7 +366,7 @@ contract PoolImplementation is PoolStorage, NameVersion {
         );
         require(
             margin + s.traderPnl >= s.traderInitialMarginRequired,
-            'PoolImplementation.removeMargin: insufficient margin'
+            'PoolImplementation.trade: insufficient margin'
         );
 
         lpsPnl = data.lpsPnl;
