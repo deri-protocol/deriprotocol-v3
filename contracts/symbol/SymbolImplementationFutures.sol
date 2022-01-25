@@ -38,7 +38,7 @@ contract SymbolImplementationFutures is SymbolStorage, NameVersion {
 
     uint256 public immutable timeThreshold; // max time delay in seconds to force settlement
 
-    int256 public immutable priceShiftLimit; // Max price shift in percentage allowed before trade/liquidation
+    int256 public immutable startingPriceShiftLimit; // Max price shift in percentage allowed before trade/liquidation
 
     bool   public immutable isCloseOnly;
 
@@ -68,7 +68,7 @@ contract SymbolImplementationFutures is SymbolStorage, NameVersion {
         maintenanceMarginRatio = parameters_[5];
         pricePercentThreshold = parameters_[6];
         timeThreshold = parameters_[7].itou();
-        priceShiftLimit = parameters_[8];
+        startingPriceShiftLimit = parameters_[8];
         isCloseOnly = isCloseOnly_;
 
         require(
@@ -272,7 +272,7 @@ contract SymbolImplementationFutures is SymbolStorage, NameVersion {
         Position memory p = positions[pTokenId];
 
         // check price shift
-        int256 netVolumeShiftAllowance = priceShiftLimit * ONE / data.K;
+        int256 netVolumeShiftAllowance = startingPriceShiftLimit * ONE / data.K;
         require(
             (p.volume >= 0 && data.netVolume + netVolumeShiftAllowance >= lastNetVolume) ||
             (p.volume <= 0 && data.netVolume <= lastNetVolume + netVolumeShiftAllowance),
