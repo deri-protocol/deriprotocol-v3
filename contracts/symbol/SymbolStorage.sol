@@ -39,4 +39,11 @@ abstract contract SymbolStorage is Admin {
     // pTokenId => Position
     mapping (uint256 => Position) public positions;
 
+    // The recorded net volume at the beginning of current block
+    // which only update once in one block and cannot be manipulated in one block
+    int256 public lastNetVolume;
+
+    // The block number in which lastNetVolume updated
+    uint256 public lastNetVolumeBlock;
+
 }

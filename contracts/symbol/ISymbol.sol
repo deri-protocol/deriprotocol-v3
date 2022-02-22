@@ -134,7 +134,7 @@ interface ISymbol {
     function settleOnTraderWithPosition(uint256 pTokenId, int256 liquidity)
     external returns (ISymbol.SettlementOnTraderWithPosition memory s);
 
-    function settleOnTrade(uint256 pTokenId, int256 tradeVolume, int256 liquidity)
+    function settleOnTrade(uint256 pTokenId, int256 tradeVolume, int256 liquidity, int256 priceLimit)
     external returns (ISymbol.SettlementOnTrade memory s);
 
     function settleOnLiquidate(uint256 pTokenId, int256 liquidity)

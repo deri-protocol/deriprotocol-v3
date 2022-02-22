@@ -29,7 +29,7 @@ contract SymbolManagerImplementation is SymbolManagerStorage, NameVersion {
         _;
     }
 
-    constructor (address pool_) NameVersion('SymbolManagerImplementation', '3.0.1') {
+    constructor (address pool_) NameVersion('SymbolManagerImplementation', '3.0.2') {
         pool = pool_;
     }
 
@@ -153,7 +153,7 @@ contract SymbolManagerImplementation is SymbolManagerStorage, NameVersion {
         initialMarginRequired += deltaInitialMarginRequired;
     }
 
-    function settleSymbolsOnTrade(uint256 pTokenId, bytes32 symbolId, int256 tradeVolume, int256 liquidity)
+    function settleSymbolsOnTrade(uint256 pTokenId, bytes32 symbolId, int256 tradeVolume, int256 liquidity, int256 priceLimit)
     external _onlyPool_ returns (ISymbolManager.SettlementOnTrade memory ss)
     {
         address tradeSymbol = symbols[symbolId];
@@ -184,7 +184,7 @@ contract SymbolManagerImplementation is SymbolManagerStorage, NameVersion {
             }
         }
 
-        ISymbol.SettlementOnTrade memory s2 = ISymbol(tradeSymbol).settleOnTrade(pTokenId, tradeVolume, liquidity);
+        ISymbol.SettlementOnTrade memory s2 = ISymbol(tradeSymbol).settleOnTrade(pTokenId, tradeVolume, liquidity, priceLimit);
         ss.funding += s2.funding;
         ss.deltaTradersPnl += s2.deltaTradersPnl;
         deltaInitialMarginRequired += s2.deltaInitialMarginRequired;

@@ -38,6 +38,8 @@ contract SymbolImplementationFutures is SymbolStorage, NameVersion {
 
     uint256 public immutable timeThreshold; // max time delay in seconds to force settlement
 
+    int256 public immutable startingPriceShiftLimit; // Max price shift in percentage allowed before trade/liquidation
+
     bool   public immutable isCloseOnly;
 
     modifier _onlyManager_() {
@@ -49,9 +51,9 @@ contract SymbolImplementationFutures is SymbolStorage, NameVersion {
         address manager_,
         address oracleManager_,
         string memory symbol_,
-        int256[8] memory parameters_,
+        int256[9] memory parameters_,
         bool isCloseOnly_
-    ) NameVersion('SymbolImplementationFutures', '3.0.1')
+    ) NameVersion('SymbolImplementationFutures', '3.0.2')
     {
         manager = manager_;
         oracleManager = oracleManager_;
@@ -66,6 +68,7 @@ contract SymbolImplementationFutures is SymbolStorage, NameVersion {
         maintenanceMarginRatio = parameters_[5];
         pricePercentThreshold = parameters_[6];
         timeThreshold = parameters_[7].itou();
+        startingPriceShiftLimit = parameters_[8];
         isCloseOnly = isCloseOnly_;
 
         require(
@@ -161,12 +164,16 @@ contract SymbolImplementationFutures is SymbolStorage, NameVersion {
         positions[pTokenId].cumulativeFundingPerVolume = data.cumulativeFundingPerVolume;
     }
 
-    function settleOnTrade(uint256 pTokenId, int256 tradeVolume, int256 liquidity)
+    // priceLimit: the average trade price cannot exceeds priceLimit
+    // for long, averageTradePrice <= priceLimit; for short, averageTradePrice >= priceLimit
+    function settleOnTrade(uint256 pTokenId, int256 tradeVolume, int256 liquidity, int256 priceLimit)
     external _onlyManager_ returns (ISymbol.SettlementOnTrade memory s)
     {
+        _updateLastNetVolume();
+
         require(
             tradeVolume != 0 && tradeVolume % minTradeVolume == 0,
-            'SymbolImplementationFutures.trade: invalid tradeVolume'
+            'SymbolImplementationFutures.settleOnTrade: invalid tradeVolume'
         );
 
         Data memory data;
@@ -180,7 +187,7 @@ contract SymbolImplementationFutures is SymbolStorage, NameVersion {
             require(
                 (p.volume > 0 && tradeVolume < 0 && p.volume + tradeVolume >= 0) ||
                 (p.volume < 0 && tradeVolume > 0 && p.volume + tradeVolume <= 0),
-                'SymbolImplementationFutures.trade: close only'
+                'SymbolImplementationFutures.settleOnTrade: close only'
             );
         }
 
@@ -195,6 +202,14 @@ contract SymbolImplementationFutures is SymbolStorage, NameVersion {
             tradeVolume
         );
         s.tradeFee = s.tradeCost.abs() * feeRatio / ONE;
+
+        // check slippage
+        int256 averageTradePrice = s.tradeCost * ONE / tradeVolume;
+        require(
+            (tradeVolume > 0 && averageTradePrice <= priceLimit) ||
+            (tradeVolume < 0 && averageTradePrice >= priceLimit),
+            'SymbolImplementationFutures.settleOnTrade: slippage exceeds allowance'
+        );
 
         if (!(p.volume >= 0 && tradeVolume >= 0) && !(p.volume <= 0 && tradeVolume <= 0)) {
             int256 absVolume = p.volume.abs();
@@ -246,6 +261,8 @@ contract SymbolImplementationFutures is SymbolStorage, NameVersion {
     function settleOnLiquidate(uint256 pTokenId, int256 liquidity)
     external _onlyManager_ returns (ISymbol.SettlementOnLiquidate memory s)
     {
+        _updateLastNetVolume();
+
         Data memory data;
 
         _getNetVolumeAndCost(data);
@@ -253,6 +270,14 @@ contract SymbolImplementationFutures is SymbolStorage, NameVersion {
         _getFunding(data, liquidity);
 
         Position memory p = positions[pTokenId];
+
+        // check price shift
+        int256 netVolumeShiftAllowance = startingPriceShiftLimit * ONE / data.K;
+        require(
+            (p.volume >= 0 && data.netVolume + netVolumeShiftAllowance >= lastNetVolume) ||
+            (p.volume <= 0 && data.netVolume <= lastNetVolume + netVolumeShiftAllowance),
+            'SymbolImplementationFutures.settleOnLiquidate: slippage exceeds allowance'
+        );
 
         int256 diff;
         unchecked { diff = data.cumulativeFundingPerVolume - p.cumulativeFundingPerVolume; }
@@ -368,6 +393,14 @@ contract SymbolImplementationFutures is SymbolStorage, NameVersion {
         int256 newK = _calculateK(data.curIndexPrice, newLiquidity);
         int256 newPnl = -DpmmLinearPricing.calculateCost(data.curIndexPrice, newK, data.netVolume, -data.netVolume) - data.netCost;
         return newPnl - data.tradersPnl;
+    }
+
+    // update lastNetVolume if this is the first transaction in current block
+    function _updateLastNetVolume() internal {
+        if (block.number > lastNetVolumeBlock) {
+            lastNetVolume = netVolume;
+            lastNetVolumeBlock = block.number;
+        }
     }
 
 }
