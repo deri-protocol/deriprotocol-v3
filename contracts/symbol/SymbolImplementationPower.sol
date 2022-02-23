@@ -82,10 +82,6 @@ contract SymbolImplementationPower is SymbolStorage, NameVersion {
         isCloseOnly = isCloseOnly_;
 
         require(
-            power >= 2 && power <= 5,
-            'SymbolImplementationPower: unreasonable power'
-        );
-        require(
             IOracleManager(oracleManager).value(priceId) != 0,
             'SymbolImplementationPower.constructor: no price oracle'
         );
