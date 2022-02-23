@@ -390,7 +390,7 @@ contract SymbolImplementationPower is SymbolStorage, NameVersion {
         return int256(power) * indexPrice * alpha / liquidity;
     }
 
-    function _exp(int256 base, uint256 exp) internal pure returns (int256) {
+    function _power(int256 base, uint256 exp) internal pure returns (int256) {
         int256 res = ONE;
         for (uint256 i = 0; i < exp; i++) {
             res = res * base / ONE;
@@ -406,7 +406,7 @@ contract SymbolImplementationPower is SymbolStorage, NameVersion {
         int256 p = int256(power);
         int256 oneHT = ONE - volatility ** 2 / ONE * p * (p - 1) / 2 * fundingPeriod / 31536000; // 1 - hT
 
-        data.powerPrice = _exp(data.curIndexPrice, power);
+        data.powerPrice = _power(data.curIndexPrice, power);
         data.theoreticalPrice = data.powerPrice * ONE / oneHT;
 
         data.K = _calculateK(data.curIndexPrice, liquidity);
