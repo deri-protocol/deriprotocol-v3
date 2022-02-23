@@ -16,6 +16,8 @@ contract SymbolImplementationPower is SymbolStorage, NameVersion {
 
     int256 constant ONE = 1e18;
 
+    uint256 public constant power = 2;
+
     address public immutable manager;
 
     address public immutable oracleManager;
@@ -25,8 +27,6 @@ contract SymbolImplementationPower is SymbolStorage, NameVersion {
     bytes32 public immutable priceId; // used to get indexPrice from oracleManager
 
     bytes32 public immutable volatilityId; // used to get volatility from oracleManager
-
-    uint256 public immutable power; // valid range: [2, 5]
 
     int256 public immutable feeRatio;
 
@@ -57,7 +57,7 @@ contract SymbolImplementationPower is SymbolStorage, NameVersion {
         address manager_,
         address oracleManager_,
         string[3] memory symbols_,
-        int256[10] memory parameters_,
+        int256[9] memory parameters_,
         bool isCloseOnly_
     ) NameVersion('SymbolImplementationPower', '3.0.2')
     {
@@ -69,16 +69,15 @@ contract SymbolImplementationPower is SymbolStorage, NameVersion {
         priceId = keccak256(abi.encodePacked(symbols_[1]));
         volatilityId = keccak256(abi.encodePacked(symbols_[2]));
 
-        power = parameters_[0].itou();
-        feeRatio = parameters_[1];
-        alpha = parameters_[2];
-        fundingPeriod = parameters_[3];
-        minTradeVolume = parameters_[4];
-        initialMarginRatio = parameters_[5];
-        maintenanceMarginRatio = parameters_[6];
-        pricePercentThreshold = parameters_[7];
-        timeThreshold = parameters_[8].itou();
-        startingPriceShiftLimit = parameters_[9];
+        feeRatio = parameters_[0];
+        alpha = parameters_[1];
+        fundingPeriod = parameters_[2];
+        minTradeVolume = parameters_[3];
+        initialMarginRatio = parameters_[4];
+        maintenanceMarginRatio = parameters_[5];
+        pricePercentThreshold = parameters_[6];
+        timeThreshold = parameters_[7].itou();
+        startingPriceShiftLimit = parameters_[8];
 
         isCloseOnly = isCloseOnly_;
 
@@ -390,23 +389,13 @@ contract SymbolImplementationPower is SymbolStorage, NameVersion {
         return int256(power) * indexPrice * alpha / liquidity;
     }
 
-    function _power(int256 base, uint256 exp) internal pure returns (int256) {
-        int256 res = ONE;
-        for (uint256 i = 0; i < exp; i++) {
-            res = res * base / ONE;
-        }
-        return res;
-    }
-
     function _getFunding(Data memory data, int256 liquidity) internal view {
         data.cumulativeFundingPerVolume = cumulativeFundingPerVolume;
 
         int256 volatility = IOracleManager(oracleManager).getValue(volatilityId).utoi();
+        int256 oneHT = ONE - volatility ** 2 / ONE * fundingPeriod / 31536000; // 1 - hT
 
-        int256 p = int256(power);
-        int256 oneHT = ONE - volatility ** 2 / ONE * p * (p - 1) / 2 * fundingPeriod / 31536000; // 1 - hT
-
-        data.powerPrice = _power(data.curIndexPrice, power);
+        data.powerPrice = data.curIndexPrice ** 2 / ONE;
         data.theoreticalPrice = data.powerPrice * ONE / oneHT;
 
         data.K = _calculateK(data.curIndexPrice, liquidity);
