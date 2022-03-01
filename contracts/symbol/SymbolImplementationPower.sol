@@ -381,8 +381,8 @@ contract SymbolImplementationPower is SymbolStorage, NameVersion {
         );
     }
 
-    function _calculateK(int256 indexPrice, int256 liquidity) internal view returns (int256) {
-        return int256(power) * indexPrice * alpha / liquidity;
+    function _calculateK(int256 theoreticalPrice, int256 liquidity) internal view returns (int256) {
+        return int256(power) * theoreticalPrice * alpha / liquidity;
     }
 
     function _getFunding(Data memory data, int256 liquidity) internal view {
@@ -394,7 +394,7 @@ contract SymbolImplementationPower is SymbolStorage, NameVersion {
         data.powerPrice = data.curIndexPrice ** 2 / ONE;
         data.theoreticalPrice = data.powerPrice * ONE / oneHT;
 
-        data.K = _calculateK(data.curIndexPrice, liquidity);
+        data.K = _calculateK(data.theoreticalPrice, liquidity);
 
         int256 markPrice = DpmmLinearPricing.calculateMarkPrice(
             data.theoreticalPrice, data.K, data.netVolume
@@ -418,7 +418,7 @@ contract SymbolImplementationPower is SymbolStorage, NameVersion {
     function _getRemoveLiquidityPenalty(Data memory data, int256 newLiquidity)
     internal view returns (int256)
     {
-        int256 newK = _calculateK(data.curIndexPrice, newLiquidity);
+        int256 newK = _calculateK(data.theoreticalPrice, newLiquidity);
         int256 newPnl = -DpmmLinearPricing.calculateCost(data.theoreticalPrice, newK, data.netVolume, -data.netVolume) - data.netCost;
         return newPnl - data.tradersPnl;
     }
