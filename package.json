@@ -19,6 +19,8 @@
     "hardhat": "^2.6.6",
     "hardhat-abi-exporter": "^2.3.0",
     "hardhat-contract-sizer": "^2.1.1",
-    "hardhat-gas-reporter": "^1.0.4"
-  }
+    "hardhat-gas-reporter": "^1.0.4",
+    "solhint": "^3.3.7"
+  },
+  "devDependencies": {}
 }
