@@ -27,6 +27,8 @@ contract Swapper is ISwapper, Admin, NameVersion {
 
     address public immutable tokenWETH;
 
+    uint8   public immutable decimalsB0;
+
     uint256 public immutable maxSlippageRatio;
 
     // fromToken => toToken => path
@@ -50,15 +52,12 @@ contract Swapper is ISwapper, Admin, NameVersion {
         oracleManager = IOracleManager(oracleManager_);
         tokenB0 = tokenB0_;
         tokenWETH = tokenWETH_;
+        decimalsB0 = IERC20(tokenB0_).decimals();
         maxSlippageRatio = maxSlippageRatio_;
 
         require(
             factory.getPair(tokenB0_, tokenWETH_) != address(0),
             'Swapper.constructor: no native path'
-        );
-        require(
-            IERC20(tokenB0_).decimals() == 18 && IERC20(tokenWETH_).decimals() == 18,
-            'Swapper.constructor: only token of decimals 18'
         );
 
         address[] memory path = new address[](2);
@@ -94,11 +93,6 @@ contract Swapper is ISwapper, Admin, NameVersion {
         paths[tokenB0][tokenBX] = path;
         paths[tokenBX][tokenB0] = revertedPath;
 
-        require(
-            IERC20(tokenBX).decimals() == 18,
-            'Swapper.setPath: only token of decimals 18'
-        );
-
         bytes32 symbolId = keccak256(abi.encodePacked(priceSymbol));
         require(oracleManager.value(symbolId) != 0, 'Swapper.setPath: no price');
         oracleSymbolIds[tokenBX] = symbolId;
@@ -117,7 +111,10 @@ contract Swapper is ISwapper, Admin, NameVersion {
     }
 
     function getTokenPrice(address tokenBX) public view returns (uint256) {
-        return oracleManager.value(oracleSymbolIds[tokenBX]);
+        uint256 decimalsBX = IERC20(tokenBX).decimals();
+        // oracleManager prices are in 18 decimals with token B0 and BX in their natural units
+        // convert it to 18 decimals with token B0 and BX in their own decimals
+        return oracleManager.value(oracleSymbolIds[tokenBX]) * 10**decimalsB0 / 10**decimalsBX;
     }
 
     receive() external payable {}
