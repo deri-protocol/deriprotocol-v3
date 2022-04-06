@@ -205,7 +205,6 @@ contract PoolImplementation is PoolStorage, NameVersion {
         _settleLp(data);
         _transferIn(data, amount);
 
-        // getVaultLiquidity returns in decimalsB0, rescale to decimals18
         int256 newLiquidity = IVault(data.vault).getVaultLiquidity().utoi() + data.amountB0;
         data.liquidity += newLiquidity - data.lpLiquidity;
         data.lpLiquidity = newLiquidity;
