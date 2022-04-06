@@ -206,7 +206,7 @@ contract PoolImplementation is PoolStorage, NameVersion {
         _transferIn(data, amount);
 
         // getVaultLiquidity returns in decimalsB0, rescale to decimals18
-        int256 newLiquidity = IVault(data.vault).getVaultLiquidity().rescale(decimalsB0, 18).utoi() + data.amountB0;
+        int256 newLiquidity = IVault(data.vault).getVaultLiquidity().utoi() + data.amountB0;
         data.liquidity += newLiquidity - data.lpLiquidity;
         data.lpLiquidity = newLiquidity;
 
@@ -249,8 +249,8 @@ contract PoolImplementation is PoolStorage, NameVersion {
             uint256 redeemAmount = amount >= underlyingBalance ?
                                    vTokenBalance :
                                    vTokenBalance * amount / underlyingBalance;
-            uint256 bl1 = IVault(data.vault).getVaultLiquidity().rescale(decimalsB0, 18);
-            uint256 bl2 = IVault(data.vault).getHypotheticalVaultLiquidity(data.market, redeemAmount).rescale(decimalsB0, 18);
+            uint256 bl1 = IVault(data.vault).getVaultLiquidity();
+            uint256 bl2 = IVault(data.vault).getHypotheticalVaultLiquidity(data.market, redeemAmount);
             removedLiquidity = (bl1 - bl2).utoi();
         }
 
@@ -302,7 +302,7 @@ contract PoolImplementation is PoolStorage, NameVersion {
         _getTdInfo(data, true);
         _transferIn(data, amount);
 
-        int256 newMargin = IVault(data.vault).getVaultLiquidity().rescale(decimalsB0, 18).utoi() + data.amountB0;
+        int256 newMargin = IVault(data.vault).getVaultLiquidity().utoi() + data.amountB0;
 
         TdInfo storage info = tdInfos[data.tokenId];
         info.vault = data.vault;
@@ -361,7 +361,7 @@ contract PoolImplementation is PoolStorage, NameVersion {
         data.cumulativePnlPerLiquidity += undistributedPnl * ONE / data.liquidity;
 
         data.amountB0 -= s.traderFunding + s.tradeFee + s.tradeRealizedCost;
-        int256 margin = IVault(data.vault).getVaultLiquidity().rescale(decimalsB0, 18).utoi() + data.amountB0;
+        int256 margin = IVault(data.vault).getVaultLiquidity().utoi() + data.amountB0;
 
         require(
             (data.liquidity + data.lpsPnl) * ONE >= s.initialMarginRequired * poolInitialMarginMultiplier,
@@ -398,7 +398,7 @@ contract PoolImplementation is PoolStorage, NameVersion {
         int256 undistributedPnl = s.funding - s.deltaTradersPnl + s.traderRealizedCost;
 
         data.amountB0 -= s.traderFunding;
-        int256 margin = IVault(data.vault).getVaultLiquidity().rescale(decimalsB0, 18).utoi() + data.amountB0;
+        int256 margin = IVault(data.vault).getVaultLiquidity().utoi() + data.amountB0;
 
         require(
             s.traderMaintenanceMarginRequired > 0,
@@ -682,7 +682,7 @@ contract PoolImplementation is PoolStorage, NameVersion {
             }
         }
 
-        newVaultLiquidity = v.getVaultLiquidity().rescale(decimalsB0, 18);
+        newVaultLiquidity = v.getVaultLiquidity();
 
         if (newVaultLiquidity == 0 && amount >= UMAX && data.amountB0 > 0) {
             (uint256 own, uint256 remainder) = data.amountB0.itou().rescaleDown(18, decimalsB0); // rescale amountB0 to decimalsB0
