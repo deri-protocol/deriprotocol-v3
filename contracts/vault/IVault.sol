@@ -8,42 +8,34 @@ interface IVault is INameVersion {
 
     function pool() external view returns (address);
 
-    function comptroller() external view returns (address);
+    function weth() external view returns (address);
 
-    function vTokenETH() external view returns (address);
+    function aavePool() external view returns (address);
 
-    function tokenXVS() external view returns (address);
+    function aaveOracle() external view returns (address);
+
+    function aaveRewardsController() external view returns (address);
 
     function vaultLiquidityMultiplier() external view returns (uint256);
 
     function getVaultLiquidity() external view  returns (uint256);
 
-    function getHypotheticalVaultLiquidity(address vTokenModify, uint256 redeemVTokens) external view returns (uint256);
+    function getHypotheticalVaultLiquidityChange(address asset, uint256 removeAmount) external view returns (uint256);
 
-    function isInMarket(address vToken) external view returns (bool);
+    function getAssetsIn() external view returns (address[] memory);
 
-    function getMarketsIn() external view returns (address[] memory);
-
-    function getBalances(address vToken) external view returns (uint256 vTokenBalance, uint256 underlyingBalance);
-
-    function enterMarket(address vToken) external;
-
-    function exitMarket(address vToken) external;
+    function getAssetBalance(address market) external view returns (uint256);
 
     function mint() external payable;
 
-    function mint(address vToken, uint256 amount) external;
+    function mint(address asset, uint256 amount) external;
 
-    function redeem(address vToken, uint256 amount) external;
+    function redeem(address asset, uint256 amount) external returns (uint256 withdrawnAmount);
 
-    function redeemAll(address vToken) external;
+    function transfer(address asset, address to, uint256 amount) external;
 
-    function redeemUnderlying(address vToken, uint256 amount) external;
+    function transferAll(address asset, address to) external returns (uint256);
 
-    function transfer(address underlying, address to, uint256 amount) external;
-
-    function transferAll(address underlying, address to) external returns (uint256);
-
-    function claimVenus(address account) external;
+    function claimStakedAave(address[] memory markets, address reward, address to) external;
 
 }

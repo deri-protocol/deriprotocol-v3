@@ -2,24 +2,25 @@
 
 pragma solidity >=0.8.0 <0.9.0;
 
+import '@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol';
+import '@uniswap/v3-periphery/contracts/interfaces/ISwapRouter.sol';
 import './ISwapper.sol';
-import '../token/IERC20.sol';
-import './IUniswapV2Factory.sol';
-import './IUniswapV2Router02.sol';
 import '../oracle/IOracleManager.sol';
 import '../utils/Admin.sol';
 import '../utils/NameVersion.sol';
+import '../library/SafeMath.sol';
 import '../library/SafeERC20.sol';
 
 contract Swapper is ISwapper, Admin, NameVersion {
 
     using SafeERC20 for IERC20;
+    using SafeMath for uint256;
 
     uint256 constant ONE = 1e18;
 
-    IUniswapV2Factory public immutable factory;
+    IUniswapV3Factory public immutable factory;
 
-    IUniswapV2Router02 public immutable router;
+    ISwapRouter public immutable router;
 
     IOracleManager public immutable oracleManager;
 
@@ -27,10 +28,14 @@ contract Swapper is ISwapper, Admin, NameVersion {
 
     address public immutable tokenWETH;
 
+    uint24  public immutable feeB0WETH;
+
+    uint8   public immutable decimalsB0;
+
     uint256 public immutable maxSlippageRatio;
 
     // fromToken => toToken => path
-    mapping (address => mapping (address => address[])) public paths;
+    mapping (address => mapping (address => bytes)) public paths;
 
     // tokenBX => oracle symbolId
     mapping (address => bytes32) public oracleSymbolIds;
@@ -41,33 +46,27 @@ contract Swapper is ISwapper, Admin, NameVersion {
         address oracleManager_,
         address tokenB0_,
         address tokenWETH_,
+        uint24  feeB0WETH_,
         uint256 maxSlippageRatio_,
         string memory nativePriceSymbol // BNBUSD for BSC, ETHUSD for Ethereum
-    ) NameVersion('Swapper', '3.0.1')
+    ) NameVersion('Swapper', '3.0.2')
     {
-        factory = IUniswapV2Factory(factory_);
-        router = IUniswapV2Router02(router_);
+        factory = IUniswapV3Factory(factory_);
+        router = ISwapRouter(router_);
         oracleManager = IOracleManager(oracleManager_);
         tokenB0 = tokenB0_;
         tokenWETH = tokenWETH_;
+        feeB0WETH = feeB0WETH_;
+        decimalsB0 = IERC20(tokenB0_).decimals();
         maxSlippageRatio = maxSlippageRatio_;
 
         require(
-            factory.getPair(tokenB0_, tokenWETH_) != address(0),
+            factory.getPool(tokenB0_, tokenWETH_, feeB0WETH_) != address(0),
             'Swapper.constructor: no native path'
         );
-        require(
-            IERC20(tokenB0_).decimals() == 18 && IERC20(tokenWETH_).decimals() == 18,
-            'Swapper.constructor: only token of decimals 18'
-        );
 
-        address[] memory path = new address[](2);
-
-        (path[0], path[1]) = (tokenB0_, tokenWETH_);
-        paths[tokenB0_][tokenWETH_] = path;
-
-        (path[0], path[1]) = (tokenWETH_, tokenB0_);
-        paths[tokenWETH_][tokenB0_] = path;
+        paths[tokenB0_][tokenWETH_] = abi.encodePacked(tokenB0_, feeB0WETH_, tokenWETH_);
+        paths[tokenWETH_][tokenB0_] = abi.encodePacked(tokenWETH_, feeB0WETH_, tokenB0_);
 
         bytes32 symbolId = keccak256(abi.encodePacked(nativePriceSymbol));
         require(oracleManager.value(symbolId) != 0, 'Swapper.constructor: no native price');
@@ -76,28 +75,40 @@ contract Swapper is ISwapper, Admin, NameVersion {
         IERC20(tokenB0_).safeApprove(router_, type(uint256).max);
     }
 
-    function setPath(string memory priceSymbol, address[] calldata path) external _onlyAdmin_ {
-        uint256 length = path.length;
+    // A complete path is constructed as
+    // [tokenB0, fees[0], tokens[0], fees[1], tokens[1] ... ]
+    function setPath(string memory priceSymbol, uint24[] calldata fees, address[] calldata tokens) external _onlyAdmin_ {
+        uint256 length = fees.length;
 
-        require(length >= 2, 'Swapper.setPath: invalid path length');
-        require(path[0] == tokenB0, 'Swapper.setPath: path should begin with tokenB0');
-        for (uint256 i = 1; i < length; i++) {
-            require(factory.getPair(path[i-1], path[i]) != address(0), 'Swapper.setPath: path broken');
-        }
+        require(length >= 1, 'Swapper.setPath: invalid path length');
+        require(tokens.length == length, 'Swapper.setPath: invalid paired path');
 
-        address[] memory revertedPath = new address[](length);
+        address tokenBX = tokens[length - 1];
+        bytes memory path;
+        address input;
+
+        // Forward path
+        input = tokenB0;
+        path = abi.encodePacked(input);
         for (uint256 i = 0; i < length; i++) {
-            revertedPath[length-i-1] = path[i];
+            require(
+                factory.getPool(input, tokens[i], fees[i]) != address(0),
+                'Swapper.setPath: path broken'
+            );
+            path = abi.encodePacked(path, fees[i], tokens[i]);
+            input = tokens[i];
         }
-
-        address tokenBX = path[length-1];
         paths[tokenB0][tokenBX] = path;
-        paths[tokenBX][tokenB0] = revertedPath;
 
-        require(
-            IERC20(tokenBX).decimals() == 18,
-            'Swapper.setPath: only token of decimals 18'
-        );
+        // Backward path
+        input = tokenBX;
+        path = abi.encodePacked(input);
+        for (uint256 i = length - 1; i > 0; i--) {
+            path = abi.encodePacked(path, fees[i], tokens[i - 1]);
+            input = tokens[i - 1];
+        }
+        path = abi.encodePacked(path, fees[0], tokenB0);
+        paths[tokenBX][tokenB0] = path;
 
         bytes32 symbolId = keccak256(abi.encodePacked(priceSymbol));
         require(oracleManager.value(symbolId) != 0, 'Swapper.setPath: no price');
@@ -106,18 +117,19 @@ contract Swapper is ISwapper, Admin, NameVersion {
         IERC20(tokenBX).safeApprove(address(router), type(uint256).max);
     }
 
-    function getPath(address tokenBX) external view returns (address[] memory) {
+    function getPath(address tokenBX) external view returns (bytes memory) {
         return paths[tokenB0][tokenBX];
     }
 
     function isSupportedToken(address tokenBX) external view returns (bool) {
-        address[] storage path1 = paths[tokenB0][tokenBX];
-        address[] storage path2 = paths[tokenBX][tokenB0];
-        return path1.length >= 2 && path2.length >= 2;
+        bytes storage path1 = paths[tokenB0][tokenBX];
+        bytes storage path2 = paths[tokenBX][tokenB0];
+        return path1.length != 0 && path2.length != 0;
     }
 
     function getTokenPrice(address tokenBX) public view returns (uint256) {
-        return oracleManager.value(oracleSymbolIds[tokenBX]);
+        uint256 decimalsBX = IERC20(tokenBX).decimals();
+        return oracleManager.value(oracleSymbolIds[tokenBX]) * 10**decimalsB0 / 10**decimalsBX;
     }
 
     receive() external payable {}
@@ -217,80 +229,63 @@ contract Swapper is ISwapper, Admin, NameVersion {
     {
         if (amount1 == 0) return (0, 0);
 
-        uint256[] memory res;
-        if (token1 == tokenWETH) {
-            res = router.swapExactETHForTokens{value: amount1}(
-                amount2,
-                paths[token1][token2],
-                msg.sender,
-                block.timestamp + 3600
-            );
-        } else if (token2 == tokenWETH) {
+        if (token1 != tokenWETH) {
             IERC20(token1).safeTransferFrom(msg.sender, address(this), amount1);
-            res = router.swapExactTokensForETH(
-                amount1,
-                amount2,
-                paths[token1][token2],
-                msg.sender,
-                block.timestamp + 3600
-            );
-        } else {
-            IERC20(token1).safeTransferFrom(msg.sender, address(this), amount1);
-            res = router.swapExactTokensForTokens(
-                amount1,
-                amount2,
-                paths[token1][token2],
-                msg.sender,
-                block.timestamp + 3600
-            );
         }
 
-        result1 = res[0];
-        result2 = res[res.length - 1];
+        ISwapRouter.ExactInputParams memory params = ISwapRouter.ExactInputParams({
+            path: paths[token1][token2],
+            recipient: token2 == tokenWETH ? address(this) : msg.sender,
+            deadline: block.timestamp,
+            amountIn: amount1,
+            amountOutMinimum: amount2
+        });
+
+        uint256 amountOut = router.exactInput{value: token1 == tokenWETH ? amount1 : 0}(params);
+
+        if (token2 == tokenWETH) {
+            IWETH9(tokenWETH).withdraw(amountOut);
+            _sendETH(msg.sender, amountOut);
+        }
+
+        result1 = amount1;
+        result2 = amountOut;
     }
 
     function _swapTokensForExactTokens(address token1, address token2, uint256 amount1, uint256 amount2)
     internal returns (uint256 result1, uint256 result2)
     {
         if (amount1 == 0 || amount2 == 0) {
-            if (amount1 > 0 && token1 == tokenWETH) {
-                _sendETH(msg.sender, amount1);
+            if (token1 == tokenWETH) {
+                _sendETH(msg.sender, address(this).balance);
             }
             return (0, 0);
         }
 
-        uint256[] memory res;
-        if (token1 == tokenWETH) {
-            res = router.swapETHForExactTokens{value: amount1}(
-                amount2,
-                paths[token1][token2],
-                msg.sender,
-                block.timestamp + 3600
-            );
-        } else if (token2 == tokenWETH) {
+        if (token1 != tokenWETH) {
             IERC20(token1).safeTransferFrom(msg.sender, address(this), amount1);
-            res = router.swapTokensForExactETH(
-                amount2,
-                amount1,
-                paths[token1][token2],
-                msg.sender,
-                block.timestamp + 3600
-            );
-        } else {
-            IERC20(token1).safeTransferFrom(msg.sender, address(this), amount1);
-            res = router.swapTokensForExactTokens(
-                amount2,
-                amount1,
-                paths[token1][token2],
-                msg.sender,
-                block.timestamp + 3600
-            );
         }
 
-        result1 = res[0];
-        result2 = res[res.length - 1];
+        ISwapRouter.ExactOutputParams memory params = ISwapRouter.ExactOutputParams({
+            path: paths[token2][token1],
+            recipient: token2 == tokenWETH ? address(this) : msg.sender,
+            deadline: block.timestamp,
+            amountOut: amount2,
+            amountInMaximum: amount1
+        });
+
+        uint256 amountIn = router.exactOutput{value: token1 == tokenWETH ? amount1 : 0}(params);
+
+        if (token2 == tokenWETH) {
+            IWETH9(tokenWETH).withdraw(amount2);
+            _sendETH(msg.sender, amount2);
+        }
+
+        result1 = amountIn;
+        result2 = amount2;
 
         if (token1 == tokenWETH) {
+            IRouterComplement(address(router)).refundETH();
             _sendETH(msg.sender, address(this).balance);
         } else {
             IERC20(token1).safeTransfer(msg.sender, IERC20(token1).balanceOf(address(this)));
@@ -302,4 +297,13 @@ contract Swapper is ISwapper, Admin, NameVersion {
         require(success, 'Swapper._sendETH: fail');
     }
 
+}
+
+interface IWETH9 {
+    function deposit() external payable;
+    function withdraw(uint256 amount) external;
+}
+
+interface IRouterComplement {
+    function refundETH() external;
 }

@@ -2,17 +2,17 @@
 
 pragma solidity >=0.8.0 <0.9.0;
 
+import '@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol';
+import '@uniswap/v3-periphery/contracts/interfaces/ISwapRouter.sol';
 import '../utils/IAdmin.sol';
 import '../utils/INameVersion.sol';
-import './IUniswapV2Factory.sol';
-import './IUniswapV2Router02.sol';
 import '../oracle/IOracleManager.sol';
 
 interface ISwapper is IAdmin, INameVersion {
 
-    function factory() external view returns (IUniswapV2Factory);
+    function factory() external view returns (IUniswapV3Factory);
 
-    function router() external view returns (IUniswapV2Router02);
+    function router() external view returns (ISwapRouter);
 
     function oracleManager() external view returns (IOracleManager);
 
@@ -20,13 +20,17 @@ interface ISwapper is IAdmin, INameVersion {
 
     function tokenWETH() external view returns (address);
 
+    function feeB0WETH() external view returns (uint24);
+
+    function decimalsB0() external view returns (uint8);
+
     function maxSlippageRatio() external view returns (uint256);
 
     function oracleSymbolIds(address tokenBX) external view returns (bytes32);
 
-    function setPath(string memory priceSymbol, address[] calldata path) external;
+    function setPath(string memory priceSymbol, uint24[] calldata fees, address[] calldata tokens) external;
 
-    function getPath(address tokenBX) external view returns (address[] memory);
+    function getPath(address tokenBX) external view returns (bytes memory);
 
     function isSupportedToken(address tokenBX) external view returns (bool);
 

@@ -12,9 +12,10 @@ contract TestOracle is NameVersion {
 
     uint256 public value;
 
-    constructor (string memory symbol_) NameVersion('Oracle', '3.0.1') {
+    constructor (string memory symbol_, uint256 value_) NameVersion('Oracle', '3.0.1') {
         symbol = symbol_;
         symbolId = keccak256(abi.encodePacked(symbol_));
+        value = value_;
     }
 
     function getValue() external view returns (uint256) {
