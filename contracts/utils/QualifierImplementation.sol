@@ -22,6 +22,7 @@ contract QualifierImplementation is QualifierStorage, NameVersion {
     }
 
     function deposit(uint256 amount) external {
+        require(amount > 0, 'QualifierImplementation.deposit: zero amount');
         IERC20(deri).safeTransferFrom(msg.sender, address(this), amount);
         stakesTotal[deri] += amount;
         if (stakes[deri][msg.sender] == 0) {
@@ -32,6 +33,7 @@ contract QualifierImplementation is QualifierStorage, NameVersion {
     }
 
     function withdraw(uint256 amount) external {
+        require(amount > 0, 'QualifierImplementation.withdraw: zero amount');
         uint256 balance = stakes[deri][msg.sender];
         require(balance >= amount, 'QualifierImplementation.withdraw: amount exceeds balance');
 

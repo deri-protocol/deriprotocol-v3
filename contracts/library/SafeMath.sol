@@ -57,7 +57,7 @@ library SafeMath {
     function rescaleUp(uint256 a, uint256 decimals1, uint256 decimals2) internal pure returns (uint256 b, uint256 c) {
         b = rescale(a, decimals1, decimals2);
         uint256 d = rescale(b, decimals2, decimals1);
-        if (d != b) {
+        if (d != a) {
             b += 1;
             c = rescale(b, decimals2, decimals1) - a;
         }
