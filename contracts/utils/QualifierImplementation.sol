@@ -46,7 +46,6 @@ contract QualifierImplementation is QualifierStorage, NameVersion {
         }
         stakesTotal[deri] -= amount;
         stakes[deri][msg.sender] -= amount;
-        stakeTimestamps[deri][msg.sender] = block.timestamp;
 
         IERC20(deri).safeTransfer(msg.sender, amount);
         emit Withdraw(deri, msg.sender, amount);
