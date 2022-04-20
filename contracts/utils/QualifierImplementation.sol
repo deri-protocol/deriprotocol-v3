@@ -17,8 +17,11 @@ contract QualifierImplementation is QualifierStorage, NameVersion {
 
     address public immutable deri;
 
-    constructor (address deri_) NameVersion('QualifierImplementation', '3.0.1') {
+    uint256 public immutable minLockTime;
+
+    constructor (address deri_, uint256 minLockTime_) NameVersion('QualifierImplementation', '3.0.1') {
         deri = deri_;
+        minLockTime = minLockTime_;
     }
 
     function deposit(uint256 amount) external {
@@ -29,6 +32,7 @@ contract QualifierImplementation is QualifierStorage, NameVersion {
             stakesCount[deri]++;
         }
         stakes[deri][msg.sender] += amount;
+        stakeTimestamps[deri][msg.sender] = block.timestamp;
         emit Deposit(deri, msg.sender, amount);
     }
 
@@ -42,12 +46,17 @@ contract QualifierImplementation is QualifierStorage, NameVersion {
         }
         stakesTotal[deri] -= amount;
         stakes[deri][msg.sender] -= amount;
+        stakeTimestamps[deri][msg.sender] = block.timestamp;
 
         IERC20(deri).safeTransfer(msg.sender, amount);
         emit Withdraw(deri, msg.sender, amount);
     }
 
     function isQualifiedLiquidator(address liquidator) external view returns (bool) {
+        require(
+            block.timestamp >= stakeTimestamps[deri][liquidator] + minLockTime,
+            'QualifierImplementation: minLockTime not met'
+        );
         uint256 count = stakesCount[deri];
         return count > 0 && stakes[deri][liquidator] * count > stakesTotal[deri];
     }

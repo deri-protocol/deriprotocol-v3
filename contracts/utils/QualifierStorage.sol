@@ -15,6 +15,9 @@ abstract contract QualifierStorage is Admin {
     // token address => staker address => staked amount
     mapping (address => mapping (address => uint256)) public stakes;
 
+    // token address => staker address => staked timestamp
+    mapping (address => mapping (address => uint256)) public stakeTimestamps;
+
     // token address => total staked amount
     mapping (address => uint256) public stakesTotal;
 
