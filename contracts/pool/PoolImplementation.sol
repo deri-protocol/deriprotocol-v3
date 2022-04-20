@@ -9,7 +9,7 @@ import '../vault/IVault.sol';
 import '../oracle/IOracleManager.sol';
 import '../swapper/ISwapper.sol';
 import '../symbol/ISymbolManager.sol';
-import '../utils/IQualifier.sol';
+import '../utils/IPrevileger.sol';
 import './PoolStorage.sol';
 import '../utils/NameVersion.sol';
 import '../library/SafeMath.sol';
@@ -79,7 +79,7 @@ contract PoolImplementation is PoolStorage, NameVersion {
 
     ISymbolManager public immutable symbolManager;
 
-    IQualifier public immutable qualifier;
+    IPrevileger public immutable previleger;
 
     uint8 public immutable decimalsB0;
 
@@ -113,7 +113,7 @@ contract PoolImplementation is PoolStorage, NameVersion {
         oracleManager = IOracleManager(addresses_[8]);
         swapper = ISwapper(addresses_[9]);
         symbolManager = ISymbolManager(addresses_[10]);
-        qualifier = IQualifier(addresses_[11]);
+        previleger = IPrevileger(addresses_[11]);
 
         decimalsB0 = IERC20(tokenB0).decimals();
 
@@ -391,7 +391,7 @@ contract PoolImplementation is PoolStorage, NameVersion {
     function liquidate(uint256 pTokenId, OracleSignature[] memory oracleSignatures) external _reentryLock_
     {
         require(
-            address(qualifier) == address(0) || qualifier.isQualifiedLiquidator(msg.sender),
+            address(previleger) == address(0) || previleger.isQualifiedLiquidator(msg.sender),
             'PoolImplementation.liquidate: unqualified liquidator'
         );
 

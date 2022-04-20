@@ -3,11 +3,11 @@
 pragma solidity >=0.8.0 <0.9.0;
 
 import '../token/IERC20.sol';
-import './QualifierStorage.sol';
+import './PrevilegerStorage.sol';
 import '../utils/NameVersion.sol';
 import '../library/SafeERC20.sol';
 
-contract QualifierImplementation is QualifierStorage, NameVersion {
+contract PrevilegerImplementation is PrevilegerStorage, NameVersion {
 
     event Deposit(address token, address user, uint256 amount);
 
@@ -19,13 +19,13 @@ contract QualifierImplementation is QualifierStorage, NameVersion {
 
     uint256 public immutable minLockTime;
 
-    constructor (address deri_, uint256 minLockTime_) NameVersion('QualifierImplementation', '3.0.1') {
+    constructor (address deri_, uint256 minLockTime_) NameVersion('PrevilegerImplementation', '3.0.1') {
         deri = deri_;
         minLockTime = minLockTime_;
     }
 
     function deposit(uint256 amount) external {
-        require(amount > 0, 'QualifierImplementation.deposit: zero amount');
+        require(amount > 0, 'PrevilegerImplementation.deposit: zero amount');
         IERC20(deri).safeTransferFrom(msg.sender, address(this), amount);
         stakesTotal[deri] += amount;
         if (stakes[deri][msg.sender] == 0) {
@@ -37,9 +37,9 @@ contract QualifierImplementation is QualifierStorage, NameVersion {
     }
 
     function withdraw(uint256 amount) external {
-        require(amount > 0, 'QualifierImplementation.withdraw: zero amount');
+        require(amount > 0, 'PrevilegerImplementation.withdraw: zero amount');
         uint256 balance = stakes[deri][msg.sender];
-        require(balance >= amount, 'QualifierImplementation.withdraw: amount exceeds balance');
+        require(balance >= amount, 'PrevilegerImplementation.withdraw: amount exceeds balance');
 
         if (balance == amount) {
             stakesCount[deri]--;
@@ -54,7 +54,7 @@ contract QualifierImplementation is QualifierStorage, NameVersion {
     function isQualifiedLiquidator(address liquidator) external view returns (bool) {
         require(
             block.timestamp >= stakeTimestamps[deri][liquidator] + minLockTime,
-            'QualifierImplementation: minLockTime not met'
+            'PrevilegerImplementation: minLockTime not met'
         );
         uint256 count = stakesCount[deri];
         return count > 0 && stakes[deri][liquidator] * count > stakesTotal[deri];
