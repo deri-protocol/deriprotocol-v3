@@ -19,13 +19,16 @@ contract PrevilegerImplementation is PrevilegerStorage, NameVersion {
 
     uint256 public immutable minLockTime;
 
-    constructor (address deri_, uint256 minLockTime_) NameVersion('PrevilegerImplementation', '3.0.1') {
+    uint256 public immutable minDepositAmount;
+
+    constructor (address deri_, uint256 minLockTime_, uint256 minDepositAmount_) NameVersion('PrevilegerImplementation', '3.0.1') {
         deri = deri_;
         minLockTime = minLockTime_;
+        minDepositAmount = minDepositAmount_;
     }
 
     function deposit(uint256 amount) external {
-        require(amount > 0, 'PrevilegerImplementation.deposit: zero amount');
+        require(amount >= minDepositAmount, 'PrevilegerImplementation.deposit: amount < minDepositAmount');
         IERC20(deri).safeTransferFrom(msg.sender, address(this), amount);
         stakesTotal[deri] += amount;
         if (stakes[deri][msg.sender] == 0) {
@@ -57,7 +60,7 @@ contract PrevilegerImplementation is PrevilegerStorage, NameVersion {
             'PrevilegerImplementation: minLockTime not met'
         );
         uint256 count = stakesCount[deri];
-        return count > 0 && stakes[deri][liquidator] * count > stakesTotal[deri];
+        return count > 0 && stakes[deri][liquidator] * count >= stakesTotal[deri];
     }
 
 }
