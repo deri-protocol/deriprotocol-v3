@@ -10,6 +10,7 @@ import '../oracle/IOracleManager.sol';
 import '../swapper/ISwapper.sol';
 import '../symbol/ISymbolManager.sol';
 import '../utils/IPrevileger.sol';
+import '../utils/IRewardVault.sol';
 import './PoolStorage.sol';
 import '../utils/NameVersion.sol';
 import '../library/SafeMath.sol';
@@ -81,6 +82,8 @@ contract PoolImplementation is PoolStorage, NameVersion {
 
     IPrevileger public immutable previleger;
 
+    IRewardVault public immutable rewardVault;
+
     uint8 public immutable decimalsB0;
 
     uint256 public immutable reserveRatioB0;
@@ -98,7 +101,7 @@ contract PoolImplementation is PoolStorage, NameVersion {
     int256 public immutable liquidationRewardCutRatio;
 
     constructor (
-        address[12] memory addresses_,
+        address[13] memory addresses_,
         uint256[7] memory parameters_
     ) NameVersion('PoolImplementation', '3.0.2')
     {
@@ -114,6 +117,7 @@ contract PoolImplementation is PoolStorage, NameVersion {
         swapper = ISwapper(addresses_[9]);
         symbolManager = ISymbolManager(addresses_[10]);
         previleger = IPrevileger(addresses_[11]);
+        rewardVault = IRewardVault(addresses_[12]);
 
         decimalsB0 = IERC20(tokenB0).decimals();
 
@@ -209,6 +213,10 @@ contract PoolImplementation is PoolStorage, NameVersion {
         _settleLp(data);
         _transferIn(data, amount);
 
+        if (address(rewardVault) != address(0)) {
+            rewardVault.updateVault(data.liquidity.itou(), data.tokenId, data.lpLiquidity.itou());
+        }
+
         int256 newLiquidity = IVault(data.vault).getVaultLiquidity().utoi() + data.amountB0;
         data.liquidity += newLiquidity - data.lpLiquidity;
         data.lpLiquidity = newLiquidity;
@@ -267,6 +275,10 @@ contract PoolImplementation is PoolStorage, NameVersion {
 
         _settleLp(data);
         uint256 newVaultLiquidity = _transferOut(data, amount, vTokenBalance, underlyingBalance);
+
+        if (address(rewardVault) != address(0)) {
+            rewardVault.updateVault(data.liquidity.itou(), data.tokenId, data.lpLiquidity.itou());
+        }
 
         int256 newLiquidity = newVaultLiquidity.utoi() + data.amountB0;
         data.liquidity += newLiquidity - data.lpLiquidity;
