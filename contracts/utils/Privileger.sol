@@ -2,9 +2,9 @@
 
 pragma solidity >=0.8.0 <0.9.0;
 
-import './PrevilegerStorage.sol';
+import './PrivilegerStorage.sol';
 
-contract Previleger is PrevilegerStorage {
+contract Privileger is PrivilegerStorage {
 
     function setImplementation(address newImplementation) external _onlyAdmin_ {
         implementation = newImplementation;

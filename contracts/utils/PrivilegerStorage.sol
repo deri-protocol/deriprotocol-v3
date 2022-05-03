@@ -4,7 +4,7 @@ pragma solidity >=0.8.0 <0.9.0;
 
 import '../utils/Admin.sol';
 
-abstract contract PrevilegerStorage is Admin {
+abstract contract PrivilegerStorage is Admin {
 
     // admin will be truned in to Timelock after deployment
 
