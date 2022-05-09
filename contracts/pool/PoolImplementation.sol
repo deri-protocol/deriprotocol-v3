@@ -442,6 +442,7 @@ contract PoolImplementation is PoolStorage, NameVersion {
 
         for (uint256 i = 0; i < assetsIn.length; i++) {
             address asset = assetsIn[i];
+            if (asset == tokenWETH) asset = address(0);
             uint256 balance = v.redeem(asset, type(uint256).max);
             if (asset == address(0)) {
                 (uint256 resultB0, ) = swapper.swapExactETHForB0{value: balance}();
