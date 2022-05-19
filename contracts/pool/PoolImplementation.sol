@@ -265,8 +265,10 @@ contract PoolImplementation is PoolStorage, NameVersion {
             removedLiquidity = (bl1 - bl2).utoi();
         }
 
+        require(data.liquidity + data.lpsPnl > removedLiquidity, 'PoolImplementation.removedLiquidity: removedLiquidity > total liquidity');
         ISymbolManager.SettlementOnRemoveLiquidity memory s =
         symbolManager.settleSymbolsOnRemoveLiquidity(data.liquidity + data.lpsPnl, removedLiquidity);
+        require(s.removeLiquidityPenalty > 0, 'PoolImplementation.removedLiquidity: negative penalty');
 
         int256 undistributedPnl = s.funding - s.deltaTradersPnl + s.removeLiquidityPenalty;
         data.lpsPnl += undistributedPnl;
