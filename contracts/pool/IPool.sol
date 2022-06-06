@@ -52,4 +52,13 @@ interface IPool is INameVersion, IAdmin {
 
     function liquidate(uint256 pTokenId, OracleSignature[] memory oracleSignatures) external;
 
+    struct LpInfo {
+        address vault;
+        int256 amountB0;
+        int256 liquidity;
+        int256 cumulativePnlPerLiquidity;
+    }
+
+    function lpInfos(uint256) external view returns (LpInfo memory);
+
 }

@@ -15,11 +15,12 @@ contract OracleOffChain is IOracleOffChain, NameVersion {
     uint256 public timestamp;
     uint256 public value;
 
-    constructor (string memory symbol_, address signer_, uint256 delayAllowance_) NameVersion('OracleOffChain', '3.0.1') {
+    constructor (string memory symbol_, address signer_, uint256 delayAllowance_, uint256 value_) NameVersion('OracleOffChain', '3.0.1') {
         symbol = symbol_;
         symbolId = keccak256(abi.encodePacked(symbol_));
         signer = signer_;
         delayAllowance = delayAllowance_;
+        value = value_;
     }
 
     function getValue() external view returns (uint256 val) {

@@ -38,4 +38,29 @@ library SafeMath {
         return a <= b ? a : b;
     }
 
+    // rescale a uint256 from base 10**decimals1 to 10**decimals2
+    function rescale(uint256 a, uint256 decimals1, uint256 decimals2) internal pure returns (uint256) {
+        return decimals1 == decimals2 ? a : a * 10**decimals2 / 10**decimals1;
+    }
+
+    // rescale towards zero
+    // b: rescaled value in decimals2
+    // c: the remainder
+    function rescaleDown(uint256 a, uint256 decimals1, uint256 decimals2) internal pure returns (uint256 b, uint256 c) {
+        b = rescale(a, decimals1, decimals2);
+        c = a - rescale(b, decimals2, decimals1);
+    }
+
+    // rescale towards infinity
+    // b: rescaled value in decimals2
+    // c: the excessive
+    function rescaleUp(uint256 a, uint256 decimals1, uint256 decimals2) internal pure returns (uint256 b, uint256 c) {
+        b = rescale(a, decimals1, decimals2);
+        uint256 d = rescale(b, decimals2, decimals1);
+        if (d != a) {
+            b += 1;
+            c = rescale(b, decimals2, decimals1) - a;
+        }
+    }
+
 }

@@ -55,12 +55,14 @@ contract VaultImplementation is NameVersion {
         );
     }
 
+    // Get this vault's liquidity, which will be used as liquidity/margin for LP/Trader, returns in 18 decimals
     function getVaultLiquidity() external view returns (uint256) {
         (uint256 err, uint256 liquidity, uint256 shortfall) = IComptroller(comptroller).getAccountLiquidity(address(this));
         require(err == 0 && shortfall == 0, 'VaultImplementation.getVaultLiquidity: error');
         return liquidity * vaultLiquidityMultiplier / ONE;
     }
 
+    // Get hypothetical liquidity, if `redeemVTokens` is redeemed, returns in 18 decimals
     function getHypotheticalVaultLiquidity(address vTokenModify, uint256 redeemVTokens)
     external view returns (uint256)
     {

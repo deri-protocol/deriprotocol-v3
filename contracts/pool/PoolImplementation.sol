@@ -9,6 +9,8 @@ import '../vault/IVault.sol';
 import '../oracle/IOracleManager.sol';
 import '../swapper/ISwapper.sol';
 import '../symbol/ISymbolManager.sol';
+import '../utils/IPrivileger.sol';
+import '../utils/IRewardVault.sol';
 import './PoolStorage.sol';
 import '../utils/NameVersion.sol';
 import '../library/SafeMath.sol';
@@ -78,6 +80,12 @@ contract PoolImplementation is PoolStorage, NameVersion {
 
     ISymbolManager public immutable symbolManager;
 
+    IPrivileger public immutable privileger;
+
+    IRewardVault public immutable rewardVault;
+
+    uint8 public immutable decimalsB0;
+
     uint256 public immutable reserveRatioB0;
 
     int256 public immutable minRatioB0;
@@ -93,7 +101,7 @@ contract PoolImplementation is PoolStorage, NameVersion {
     int256 public immutable liquidationRewardCutRatio;
 
     constructor (
-        address[11] memory addresses_,
+        address[13] memory addresses_,
         uint256[7] memory parameters_
     ) NameVersion('PoolImplementation', '3.0.2')
     {
@@ -108,6 +116,10 @@ contract PoolImplementation is PoolStorage, NameVersion {
         oracleManager = IOracleManager(addresses_[8]);
         swapper = ISwapper(addresses_[9]);
         symbolManager = ISymbolManager(addresses_[10]);
+        privileger = IPrivileger(addresses_[11]);
+        rewardVault = IRewardVault(addresses_[12]);
+
+        decimalsB0 = IERC20(tokenB0).decimals();
 
         reserveRatioB0 = parameters_[0];
         minRatioB0 = parameters_[1].utoi();
@@ -116,20 +128,11 @@ contract PoolImplementation is PoolStorage, NameVersion {
         minLiquidationReward = parameters_[4].utoi();
         maxLiquidationReward = parameters_[5].utoi();
         liquidationRewardCutRatio = parameters_[6].utoi();
-
-        require(
-            IERC20(tokenB0).decimals() == 18 && IERC20(tokenWETH).decimals() == 18,
-            'PoolImplementation.constant: only token of decimals 18'
-        );
     }
 
     function addMarket(address market) external _onlyAdmin_ {
         // underlying is the underlying token of Venus market
         address underlying = IVToken(market).underlying();
-        require(
-            IERC20(underlying).decimals() == 18,
-            'PoolImplementation.addMarket: only token of decimals 18'
-        );
         require(
             IVToken(market).isVToken(),
             'PoolImplementation.addMarket: invalid vToken'
@@ -165,8 +168,9 @@ contract PoolImplementation is PoolStorage, NameVersion {
 
     function collectProtocolFee() external _onlyAdmin_ {
         require(protocolFeeCollector != address(0), 'PoolImplementation.collectProtocolFee: collector not set');
-        uint256 amount = protocolFeeAccrued.itou();
-        protocolFeeAccrued = 0;
+        // rescale protocolFeeAccrued from decimals18 to decimalsB0
+        (uint256 amount, uint256 remainder) = protocolFeeAccrued.itou().rescaleDown(18, decimalsB0);
+        protocolFeeAccrued = remainder.utoi();
         IERC20(tokenB0).safeTransfer(protocolFeeCollector, amount);
         emit CollectProtocolFee(protocolFeeCollector, amount);
     }
@@ -187,6 +191,7 @@ contract PoolImplementation is PoolStorage, NameVersion {
 
     //================================================================================
 
+    // amount in underlying's own decimals
     function addLiquidity(address underlying, uint256 amount, OracleSignature[] memory oracleSignatures) external payable _reentryLock_
     {
         _updateOracles(oracleSignatures);
@@ -208,12 +213,17 @@ contract PoolImplementation is PoolStorage, NameVersion {
         _settleLp(data);
         _transferIn(data, amount);
 
+        if (address(rewardVault) != address(0)) {
+            rewardVault.updateVault(data.liquidity.itou(), data.tokenId, data.lpLiquidity.itou());
+        }
+
         int256 newLiquidity = IVault(data.vault).getVaultLiquidity().utoi() + data.amountB0;
         data.liquidity += newLiquidity - data.lpLiquidity;
         data.lpLiquidity = newLiquidity;
 
         require(
-            IERC20(tokenB0).balanceOf(address(this)).utoi() * ONE >= data.liquidity * minRatioB0,
+            // rescale tokenB0 balance from decimalsB0 to 18
+            IERC20(tokenB0).balanceOf(address(this)).rescale(decimalsB0, 18).utoi() * ONE >= data.liquidity * minRatioB0,
             'PoolImplementation.addLiquidity: insufficient B0'
         );
 
@@ -230,6 +240,7 @@ contract PoolImplementation is PoolStorage, NameVersion {
         emit AddLiquidity(data.tokenId, underlying, amount, newLiquidity);
     }
 
+    // amount in underlying's own decimals
     function removeLiquidity(address underlying, uint256 amount, OracleSignature[] memory oracleSignatures) external _reentryLock_
     {
         _updateOracles(oracleSignatures);
@@ -240,9 +251,10 @@ contract PoolImplementation is PoolStorage, NameVersion {
         int256 removedLiquidity;
         (uint256 vTokenBalance, uint256 underlyingBalance) = IVault(data.vault).getBalances(data.market);
         if (underlying == tokenB0) {
-            int256 available = underlyingBalance.utoi() + data.amountB0;
+            int256 available = underlyingBalance.rescale(decimalsB0, 18).utoi() + data.amountB0; // available in decimals18
             if (available > 0) {
-                removedLiquidity = amount >= available.itou() ? available : amount.utoi();
+                int256 amountIn18 = amount.rescale(decimalsB0, 18).utoi(); // amount in decimals18
+                removedLiquidity = amountIn18.min(available);
             }
         } else if (underlyingBalance > 0) {
             uint256 redeemAmount = amount >= underlyingBalance ?
@@ -253,8 +265,10 @@ contract PoolImplementation is PoolStorage, NameVersion {
             removedLiquidity = (bl1 - bl2).utoi();
         }
 
+        require(data.liquidity + data.lpsPnl > removedLiquidity, 'PoolImplementation.removedLiquidity: removedLiquidity > total liquidity');
         ISymbolManager.SettlementOnRemoveLiquidity memory s =
         symbolManager.settleSymbolsOnRemoveLiquidity(data.liquidity + data.lpsPnl, removedLiquidity);
+        require(s.removeLiquidityPenalty > 0, 'PoolImplementation.removedLiquidity: negative penalty');
 
         int256 undistributedPnl = s.funding - s.deltaTradersPnl + s.removeLiquidityPenalty;
         data.lpsPnl += undistributedPnl;
@@ -263,6 +277,10 @@ contract PoolImplementation is PoolStorage, NameVersion {
 
         _settleLp(data);
         uint256 newVaultLiquidity = _transferOut(data, amount, vTokenBalance, underlyingBalance);
+
+        if (address(rewardVault) != address(0)) {
+            rewardVault.updateVault(data.liquidity.itou(), data.tokenId, data.lpLiquidity.itou());
+        }
 
         int256 newLiquidity = newVaultLiquidity.utoi() + data.amountB0;
         data.liquidity += newLiquidity - data.lpLiquidity;
@@ -285,6 +303,7 @@ contract PoolImplementation is PoolStorage, NameVersion {
         emit RemoveLiquidity(data.tokenId, underlying, amount, newLiquidity);
     }
 
+    // amount in underlying's own decimals
     function addMargin(address underlying, uint256 amount, OracleSignature[] memory oracleSignatures) external payable _reentryLock_
     {
         _updateOracles(oracleSignatures);
@@ -293,6 +312,7 @@ contract PoolImplementation is PoolStorage, NameVersion {
 
         Data memory data;
         data.underlying = underlying;
+        data.decimalsUnderlying = _getDecimalsUnderlying(underlying); // get underlying's decimals
         data.market = _getMarket(underlying);
         data.account = msg.sender;
 
@@ -378,6 +398,11 @@ contract PoolImplementation is PoolStorage, NameVersion {
 
     function liquidate(uint256 pTokenId, OracleSignature[] memory oracleSignatures) external _reentryLock_
     {
+        require(
+            address(privileger) == address(0) || privileger.isQualifiedLiquidator(msg.sender),
+            'PoolImplementation.liquidate: unqualified liquidator'
+        );
+
         _updateOracles(oracleSignatures);
 
         require(
@@ -420,12 +445,12 @@ contract PoolImplementation is PoolStorage, NameVersion {
                 balance = v.transferAll(underlying, address(this));
                 if (underlying == address(0)) {
                     (uint256 resultB0, ) = swapper.swapExactETHForB0{value: balance}();
-                    data.amountB0 += resultB0.utoi();
+                    data.amountB0 += resultB0.rescale(decimalsB0, 18).utoi(); // rescale resultB0 from decimalsB0 to 18
                 } else if (underlying == tokenB0) {
-                    data.amountB0 += balance.utoi();
+                    data.amountB0 += balance.rescale(decimalsB0, 18).utoi(); // rescale balance from decimalsB0 to 18
                 } else {
                     (uint256 resultB0, ) = swapper.swapExactBXForB0(underlying, balance);
-                    data.amountB0 += resultB0.utoi();
+                    data.amountB0 += resultB0.rescale(decimalsB0, 18).utoi(); // rescale resultB0 from decimalsB0 to 18
                 }
             }
         }
@@ -437,12 +462,13 @@ contract PoolImplementation is PoolStorage, NameVersion {
             reward = (data.amountB0 - minLiquidationReward) * liquidationRewardCutRatio / ONE + minLiquidationReward;
             reward = reward.min(maxLiquidationReward);
         }
+        reward = reward.itou().rescale(18, decimalsB0).rescale(decimalsB0, 18).utoi(); // make reward no remainder when convert to decimalsB0
 
         undistributedPnl += data.amountB0 - reward;
         data.lpsPnl += undistributedPnl;
         data.cumulativePnlPerLiquidity += undistributedPnl * ONE / data.liquidity;
 
-        _transfer(tokenB0, msg.sender, reward.itou());
+        _transfer(tokenB0, msg.sender, reward.itou().rescale(18, decimalsB0)); // when transfer, use decimalsB0
 
         lpsPnl = data.lpsPnl;
         cumulativePnlPerLiquidity = data.cumulativePnlPerLiquidity;
@@ -482,6 +508,7 @@ contract PoolImplementation is PoolStorage, NameVersion {
 
         address underlying;
         address market;
+        uint256 decimalsUnderlying;
 
         address account;
         uint256 tokenId;
@@ -501,7 +528,18 @@ contract PoolImplementation is PoolStorage, NameVersion {
     function _initializeData(address underlying) internal view returns (Data memory data) {
         data = _initializeData();
         data.underlying = underlying;
+        data.decimalsUnderlying = _getDecimalsUnderlying(underlying); // get underlying's decimals
         data.market = _getMarket(underlying);
+    }
+
+    function _getDecimalsUnderlying(address underlying) internal view returns (uint8) {
+        if (underlying == address(0)) {
+            return 18;
+        } else if (underlying == tokenB0) {
+            return decimalsB0;
+        } else {
+            return IERC20(underlying).decimals();
+        }
     }
 
     function _getMarket(address underlying) internal view returns (address market) {
@@ -577,6 +615,7 @@ contract PoolImplementation is PoolStorage, NameVersion {
         data.lpCumulativePnlPerLiquidity = data.cumulativePnlPerLiquidity;
     }
 
+    // amount in underlying's own decimals
     function _transfer(address underlying, address to, uint256 amount) internal {
         if (underlying == address(0)) {
             (bool success, ) = payable(to).call{value: amount}('');
@@ -586,6 +625,7 @@ contract PoolImplementation is PoolStorage, NameVersion {
         }
     }
 
+    // amount in underlying's own decimals
     function _transferIn(Data memory data, uint256 amount) internal {
         IVault v = IVault(data.vault);
 
@@ -604,7 +644,7 @@ contract PoolImplementation is PoolStorage, NameVersion {
             IERC20(data.underlying).safeTransfer(data.vault, deposit);
 
             v.mint(data.market, deposit);
-            data.amountB0 += reserve.utoi();
+            data.amountB0 += reserve.rescale(data.decimalsUnderlying, 18).utoi(); // amountB0 is in decimals18
         }
         else {
             IERC20(data.underlying).safeTransferFrom(data.account, data.vault, amount);
@@ -612,6 +652,7 @@ contract PoolImplementation is PoolStorage, NameVersion {
         }
     }
 
+    // amount/vTokenBalance/underlyingBalance are all in their own decimals
     function _transferOut(Data memory data, uint256 amount, uint256 vTokenBalance, uint256 underlyingBalance)
     internal returns (uint256 newVaultLiquidity)
     {
@@ -629,20 +670,20 @@ contract PoolImplementation is PoolStorage, NameVersion {
                                 IERC20(data.underlying).balanceOf(data.vault);
 
             if (data.amountB0 < 0) {
-                uint256 owe = (-data.amountB0).itou();
+                (uint256 owe, uint256 excessive) = (-data.amountB0).itou().rescaleUp(18, decimalsB0); // amountB0 is in decimals18
                 v.transfer(data.underlying, address(this), underlyingBalance);
 
                 if (data.underlying == address(0)) {
                     (uint256 resultB0, uint256 resultBX) = swapper.swapETHForExactB0{value: underlyingBalance}(owe);
-                    data.amountB0 += resultB0.utoi();
+                    data.amountB0 += resultB0.rescale(decimalsB0, 18).utoi(); // rescale resultB0 from decimalsB0 to 18
                     underlyingBalance -= resultBX;
                 }
                 else if (data.underlying == tokenB0) {
                     if (underlyingBalance >= owe) {
-                        data.amountB0 = 0;
+                        data.amountB0 = excessive.utoi(); // excessive is already in decimals18
                         underlyingBalance -= owe;
                     } else {
-                        data.amountB0 += underlyingBalance.utoi();
+                        data.amountB0 += underlyingBalance.rescale(decimalsB0, 18).utoi(); // rescale underlyingBalance to decimals18
                         underlyingBalance = 0;
                     }
                 }
@@ -650,7 +691,7 @@ contract PoolImplementation is PoolStorage, NameVersion {
                     (uint256 resultB0, uint256 resultBX) = swapper.swapBXForExactB0(
                         data.underlying, owe, underlyingBalance
                     );
-                    data.amountB0 += resultB0.utoi();
+                    data.amountB0 += resultB0.rescale(decimalsB0, 18).utoi(); // resultB0 to decimals18
                     underlyingBalance -= resultBX;
                 }
 
@@ -666,7 +707,7 @@ contract PoolImplementation is PoolStorage, NameVersion {
         newVaultLiquidity = v.getVaultLiquidity();
 
         if (newVaultLiquidity == 0 && amount >= UMAX && data.amountB0 > 0) {
-            uint256 own = data.amountB0.itou();
+            (uint256 own, uint256 remainder) = data.amountB0.itou().rescaleDown(18, decimalsB0); // rescale amountB0 to decimalsB0
             uint256 resultBX;
 
             if (data.underlying == address(0)) {
@@ -678,14 +719,14 @@ contract PoolImplementation is PoolStorage, NameVersion {
             }
 
             _transfer(data.underlying, data.account, resultBX);
-            data.amountB0 = 0;
+            data.amountB0 = remainder.utoi(); // assign the remainder back to amountB0, which is not swappable
         }
 
         if (data.underlying == tokenB0 && data.amountB0 > 0 && amount > underlyingBalance) {
-            uint256 own = data.amountB0.itou();
+            uint256 own = data.amountB0.itou().rescale(18, decimalsB0); // rescale amountB0 to decimalsB0
             uint256 resultBX = own.min(amount - underlyingBalance);
             _transfer(tokenB0, data.account, resultBX);
-            data.amountB0 -= resultBX.utoi();
+            data.amountB0 -= resultBX.rescale(decimalsB0, 18).utoi();
         }
     }
 
