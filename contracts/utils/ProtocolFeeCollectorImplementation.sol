@@ -32,7 +32,9 @@ contract ProtocolFeeCollectorImplementation is ProtocolFeeCollectorStorage, Name
         bToken = bToken_;
         burningDestination = burningDestination_;
         swapRouter = swapRouter_;
+    }
 
+    function approveSwapRouter() external _onlyAdmin_ {
         IERC20(bToken).safeApprove(swapRouter, type(uint256).max);
     }
 

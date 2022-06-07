@@ -229,11 +229,14 @@ contract PoolImplementation is PoolStorage, NameVersion {
         data.liquidity += newLiquidity - data.lpLiquidity;
         data.lpLiquidity = newLiquidity;
 
-        require(
-            // rescale tokenB0 balance from decimalsB0 to 18
-            IERC20(tokenB0).balanceOf(address(this)).rescale(decimalsB0, 18).utoi() * ONE >= data.liquidity * minRatioB0,
-            'PoolImplementation.addLiquidity: insufficient B0'
-        );
+        // only check B0 sufficiency when underlying is not B0
+        if (asset != tokenB0) {
+            require(
+                // rescale tokenB0 balance from decimalsB0 to 18
+                IERC20(tokenB0).balanceOf(address(this)).rescale(decimalsB0, 18).utoi() * ONE >= data.liquidity * minRatioB0,
+                'PoolImplementation.addLiquidity: insufficient B0'
+            );
+        }
 
         liquidity = data.liquidity;
         lpsPnl = data.lpsPnl;
