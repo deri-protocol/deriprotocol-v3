@@ -80,7 +80,7 @@ contract PoolImplementationLite is PoolStorage, NameVersion {
     constructor (
         address[7] memory addresses_,
         uint256[5] memory parameters_
-    ) NameVersion('PoolImplementationLite', '3.0.2')
+    ) NameVersion('PoolImplementation', '3.0.2')
     {
         tokenB0 = addresses_[0];
         lToken = IDToken(addresses_[1]);
