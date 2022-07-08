@@ -130,11 +130,13 @@ contract PoolImplementationLite is PoolStorage, NameVersion {
             data.cumulativePnlPerLiquidity += undistributedPnl * ONE / data.liquidity;
         }
 
+        uint256 balanceB0 = IERC20(tokenB0).balanceOf(address(this));
         _settleLp(data);
         _transferIn(data, amount);
 
         if (address(rewardVault) != address(0)) {
-            rewardVault.updateVault(data.liquidity.itou(), data.tokenId, data.lpLiquidity.itou());
+            int256 newLiquidityB0 = data.amountB0;
+            rewardVault.updateVault(data.liquidity.itou(), data.tokenId, data.lpLiquidity.itou(), balanceB0, newLiquidityB0);
         }
 
         int256 newLiquidity = data.amountB0;
@@ -173,11 +175,13 @@ contract PoolImplementationLite is PoolStorage, NameVersion {
         data.cumulativePnlPerLiquidity += undistributedPnl * ONE / data.liquidity;
         data.amountB0 -= s.removeLiquidityPenalty;
 
+        uint256 balanceB0 = IERC20(tokenB0).balanceOf(address(this));
         _settleLp(data);
         _transferOut(data, amount);
 
         if (address(rewardVault) != address(0)) {
-            rewardVault.updateVault(data.liquidity.itou(), data.tokenId, data.lpLiquidity.itou());
+            int256 newLiquidityB0 = data.amountB0;
+            rewardVault.updateVault(data.liquidity.itou(), data.tokenId, data.lpLiquidity.itou(), balanceB0, newLiquidityB0);
         }
 
         int256 newLiquidity = data.amountB0;
