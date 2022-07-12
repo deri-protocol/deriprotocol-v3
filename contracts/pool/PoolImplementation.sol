@@ -210,11 +210,14 @@ contract PoolImplementation is PoolStorage, NameVersion {
             data.cumulativePnlPerLiquidity += undistributedPnl * ONE / data.liquidity;
         }
 
+        uint256 balanceB0 = IERC20(tokenB0).balanceOf(address(this));
         _settleLp(data);
         _transferIn(data, amount);
 
         if (address(rewardVault) != address(0)) {
-            rewardVault.updateVault(data.liquidity.itou(), data.tokenId, data.lpLiquidity.itou());
+            (, uint256 underlyingBalanceB0) = IVault(data.vault).getBalances(vTokenB0);
+            int256 newLiquidityB0 = underlyingBalanceB0.utoi() + data.amountB0;
+            rewardVault.updateVault(data.liquidity.itou(), data.tokenId, data.lpLiquidity.itou(), balanceB0.rescale(decimalsB0, 18), newLiquidityB0);
         }
 
         int256 newLiquidity = IVault(data.vault).getVaultLiquidity().utoi() + data.amountB0;
@@ -279,10 +282,14 @@ contract PoolImplementation is PoolStorage, NameVersion {
         data.amountB0 -= s.removeLiquidityPenalty;
 
         _settleLp(data);
+
+        uint256 balanceB0 = IERC20(tokenB0).balanceOf(address(this));
         uint256 newVaultLiquidity = _transferOut(data, amount, vTokenBalance, underlyingBalance);
 
         if (address(rewardVault) != address(0)) {
-            rewardVault.updateVault(data.liquidity.itou(), data.tokenId, data.lpLiquidity.itou());
+            (, uint256 underlyingBalanceB0) = IVault(data.vault).getBalances(vTokenB0);
+            int256 newLiquidityB0 = underlyingBalanceB0.utoi() + data.amountB0;
+            rewardVault.updateVault(data.liquidity.itou(), data.tokenId, data.lpLiquidity.itou(), balanceB0.rescale(decimalsB0, 18), newLiquidityB0);
         }
 
         int256 newLiquidity = newVaultLiquidity.utoi() + data.amountB0;
