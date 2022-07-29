@@ -255,7 +255,7 @@ contract SymbolImplementationOption is SymbolStorage, NameVersion {
         _getTradersPnl(data);
         _getInitialMarginRequired(data);
 
-        int256 curMarkPrice = DpmmLinearPricing.calculateMarkPrice(data.curIndexPrice, data.K, data.netVolume);
+        int256 curMarkPrice = DpmmLinearPricing.calculateMarkPrice(data.theoreticalPrice, data.K, data.netVolume);
         require(
             (curMarkPrice - data.preMarkPrice).abs() < data.preMarkPrice.abs() / 5,
             'SymbolImplementationOption.settleOnTrade: exceed mark limit'
