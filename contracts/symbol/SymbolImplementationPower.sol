@@ -239,6 +239,11 @@ contract SymbolImplementationPower is SymbolStorage, NameVersion {
         _getTradersPnl(data);
         _getInitialMarginRequired(data);
 
+        require(
+            DpmmLinearPricing.calculateMarkPrice(data.theoreticalPrice, data.K, data.netVolume) > 0,
+            'SymbolImplementationPower.settleOnTrade: exceed mark limit'
+        );
+
         p.volume += tradeVolume;
         p.cost += s.tradeCost - s.tradeRealizedCost;
         p.cumulativeFundingPerVolume = data.cumulativeFundingPerVolume;
