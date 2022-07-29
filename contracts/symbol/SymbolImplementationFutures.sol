@@ -40,8 +40,6 @@ contract SymbolImplementationFutures is SymbolStorage, NameVersion {
 
     int256 public immutable startingPriceShiftLimit; // Max price shift in percentage allowed before trade/liquidation
 
-    int256 public immutable tradeMarkPriceShiftLimit;
-
     bool   public immutable isCloseOnly;
 
     modifier _onlyManager_() {
@@ -53,7 +51,7 @@ contract SymbolImplementationFutures is SymbolStorage, NameVersion {
         address manager_,
         address oracleManager_,
         string memory symbol_,
-        int256[10] memory parameters_,
+        int256[9] memory parameters_,
         bool isCloseOnly_
     ) NameVersion('SymbolImplementationFutures', '3.0.2')
     {
@@ -71,7 +69,6 @@ contract SymbolImplementationFutures is SymbolStorage, NameVersion {
         pricePercentThreshold = parameters_[6];
         timeThreshold = parameters_[7].itou();
         startingPriceShiftLimit = parameters_[8];
-        tradeMarkPriceShiftLimit = parameters_[9];
         isCloseOnly = isCloseOnly_;
 
         require(
@@ -231,7 +228,7 @@ contract SymbolImplementationFutures is SymbolStorage, NameVersion {
 
         int256 curMarkPrice = DpmmLinearPricing.calculateMarkPrice(data.curIndexPrice, data.K, data.netVolume);
         require(
-            (curMarkPrice - data.preMarkPrice).abs() * ONE < data.preMarkPrice.abs() * tradeMarkPriceShiftLimit,
+            (curMarkPrice - data.preMarkPrice).abs() < data.preMarkPrice.abs() / 10,
             'SymbolImplementationFutures.settleOnTrade: exceed mark limit'
         );
 
