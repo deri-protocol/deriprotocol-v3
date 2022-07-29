@@ -40,6 +40,8 @@ contract SymbolImplementationFutures is SymbolStorage, NameVersion {
 
     int256 public immutable startingPriceShiftLimit; // Max price shift in percentage allowed before trade/liquidation
 
+    int256 public immutable tradeMarkPriceShiftLimit;
+
     bool   public immutable isCloseOnly;
 
     modifier _onlyManager_() {
@@ -51,7 +53,7 @@ contract SymbolImplementationFutures is SymbolStorage, NameVersion {
         address manager_,
         address oracleManager_,
         string memory symbol_,
-        int256[9] memory parameters_,
+        int256[10] memory parameters_,
         bool isCloseOnly_
     ) NameVersion('SymbolImplementationFutures', '3.0.2')
     {
@@ -69,6 +71,7 @@ contract SymbolImplementationFutures is SymbolStorage, NameVersion {
         pricePercentThreshold = parameters_[6];
         timeThreshold = parameters_[7].itou();
         startingPriceShiftLimit = parameters_[8];
+        tradeMarkPriceShiftLimit = parameters_[9];
         isCloseOnly = isCloseOnly_;
 
         require(
@@ -226,6 +229,12 @@ contract SymbolImplementationFutures is SymbolStorage, NameVersion {
         _getTradersPnl(data);
         _getInitialMarginRequired(data);
 
+        int256 curMarkPrice = DpmmLinearPricing.calculateMarkPrice(data.curIndexPrice, data.K, data.netVolume);
+        require(
+            (curMarkPrice - data.preMarkPrice).abs() * ONE < data.preMarkPrice.abs() * tradeMarkPriceShiftLimit,
+            'SymbolImplementationFutures.settleOnTrade: exceed mark limit'
+        );
+
         p.volume += tradeVolume;
         p.cost += s.tradeCost - s.tradeRealizedCost;
         p.cumulativeFundingPerVolume = data.cumulativeFundingPerVolume;
@@ -327,6 +336,7 @@ contract SymbolImplementationFutures is SymbolStorage, NameVersion {
         uint256 curTimestamp;
         int256 preIndexPrice;
         int256 curIndexPrice;
+        int256 preMarkPrice;
         int256 netVolume;
         int256 netCost;
         int256 cumulativeFundingPerVolume;
@@ -373,8 +383,8 @@ contract SymbolImplementationFutures is SymbolStorage, NameVersion {
         data.cumulativeFundingPerVolume = cumulativeFundingPerVolume;
         data.K = _calculateK(data.curIndexPrice, liquidity);
 
-        int256 markPrice = DpmmLinearPricing.calculateMarkPrice(data.curIndexPrice, data.K, data.netVolume);
-        int256 diff = (markPrice - data.curIndexPrice) * (data.curTimestamp - data.preTimestamp).utoi() / fundingPeriod;
+        data.preMarkPrice = DpmmLinearPricing.calculateMarkPrice(data.curIndexPrice, data.K, data.netVolume);
+        int256 diff = (data.preMarkPrice - data.curIndexPrice) * (data.curTimestamp - data.preTimestamp).utoi() / fundingPeriod;
         data.funding = data.netVolume * diff / ONE;
         unchecked { data.cumulativeFundingPerVolume += diff; }
     }
