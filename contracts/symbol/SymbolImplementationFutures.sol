@@ -228,7 +228,7 @@ contract SymbolImplementationFutures is SymbolStorage, NameVersion {
 
         int256 curMarkPrice = DpmmLinearPricing.calculateMarkPrice(data.curIndexPrice, data.K, data.netVolume);
         require(
-            (curMarkPrice - data.preMarkPrice).abs() < data.preMarkPrice.abs() / 10,
+            (curMarkPrice - data.preMarkPrice).abs() < data.preMarkPrice.abs() / 5,
             'SymbolImplementationFutures.settleOnTrade: exceed mark limit'
         );
 

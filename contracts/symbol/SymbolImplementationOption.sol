@@ -255,6 +255,12 @@ contract SymbolImplementationOption is SymbolStorage, NameVersion {
         _getTradersPnl(data);
         _getInitialMarginRequired(data);
 
+        int256 curMarkPrice = DpmmLinearPricing.calculateMarkPrice(data.curIndexPrice, data.K, data.netVolume);
+        require(
+            (curMarkPrice - data.preMarkPrice).abs() < data.preMarkPrice.abs() / 5,
+            'SymbolImplementationOption.settleOnTrade: exceed mark limit'
+        );
+
         p.volume += tradeVolume;
         p.cost += s.tradeCost - s.tradeRealizedCost;
         p.cumulativeFundingPerVolume = data.cumulativeFundingPerVolume;
@@ -354,6 +360,7 @@ contract SymbolImplementationOption is SymbolStorage, NameVersion {
         uint256 curTimestamp;
         int256 preIndexPrice;
         int256 curIndexPrice;
+        int256 preMarkPrice;
         int256 netVolume;
         int256 netCost;
         int256 cumulativeFundingPerVolume;
@@ -428,10 +435,10 @@ contract SymbolImplementationOption is SymbolStorage, NameVersion {
 
         data.K = _calculateK(data.curIndexPrice, data.theoreticalPrice, data.delta, liquidity);
 
-        int256 markPrice = DpmmLinearPricing.calculateMarkPrice(
+        data.preMarkPrice = DpmmLinearPricing.calculateMarkPrice(
             data.theoreticalPrice, data.K, data.netVolume
         );
-        int256 diff = (markPrice - data.intrinsicValue) * (data.curTimestamp - data.preTimestamp).utoi() / fundingPeriod;
+        int256 diff = (data.preMarkPrice - data.intrinsicValue) * (data.curTimestamp - data.preTimestamp).utoi() / fundingPeriod;
 
         data.funding = data.netVolume * diff / ONE;
         unchecked { data.cumulativeFundingPerVolume += diff; }
